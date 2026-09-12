@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aplikasi Kuis AR</title>
+    
+    <!-- Memanggil library eksternal untuk PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Memanggil file CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header id="app-header">Kelas & Siswa</header>
+
+    <main>
+        <!-- HALAMAN 1: KELAS & SISWA -->
+        <section id="page-kelas" class="page active">
+            <div class="card">
+                <h3>Tambah Siswa Baru</h3>
+                <input type="text" id="nama-siswa" placeholder="Masukkan Nama Siswa (Contoh: Budi)">
+                <button onclick="tambahSiswa()">Simpan Siswa</button>
+            </div>
+            <div class="card">
+                <h3>Daftar Siswa</h3>
+                <div id="daftar-siswa"></div>
+                <button onclick="cetakMarkerPDF()" style="background: #2196F3;">Cetak Kartu Marker (PDF)</button>
+            </div>
+        </section>
+
+        <!-- HALAMAN 2: BANK SOAL -->
+        <section id="page-soal" class="page">
+            <div class="card">
+                <h3>Buat Soal Baru</h3>
+                <input type="text" id="teks-soal" placeholder="Pertanyaan...">
+                <input type="text" id="pil-a" placeholder="Pilihan A">
+                <input type="text" id="pil-b" placeholder="Pilihan B">
+                <input type="text" id="pil-c" placeholder="Pilihan C">
+                <input type="text" id="pil-d" placeholder="Pilihan D">
+                <select id="kunci-jawaban">
+                    <option value="">-- Pilih Kunci Jawaban --</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                </select>
+                <button onclick="tambahSoal()">Simpan Soal</button>
+            </div>
+            <div class="card">
+                <h3>Daftar Soal</h3>
+                <div id="daftar-soal"></div>
+            </div>
+        </section>
+
+        <!-- HALAMAN 3: KAMERA SCANNER -->
+        <section id="page-kamera" class="page">
+            <div class="card">
+                <h3>Pilih Soal yang Diujikan</h3>
+                <select id="pilih-soal-aktif"></select>
+                
+                <div id="video-container" style="margin-top: 15px;">
+                    <video id="kamera-feed" autoplay playsinline></video>
+                    <div class="overlay-text" id="status-kamera">Kamera nonaktif</div>
+                </div>
+                
+                <button onclick="bukaKamera()">1. Buka Kamera</button>
+                <button onclick="simulasiScan()" style="background: #FF9800;">2. Simulasi Scan (Contoh)</button>
+                <button onclick="tutupKamera()" class="btn-danger">3. Tutup Kamera</button>
+            </div>
+        </section>
+
+        <!-- HALAMAN 4: HASIL SKOR -->
+        <section id="page-hasil" class="page">
+            <div class="card">
+                <h3>Rekap Nilai Sementara</h3>
+                <div id="daftar-hasil"></div>
+                <button onclick="hapusSemuaHasil()" class="btn-danger">Hapus Semua Data Nilai</button>
+            </div>
+        </section>
+
+        <!-- ELEMEN TERSEMBUNYI UNTUK GENERATE KARTU PDF -->
+        <div id="area-cetak">
+            <!-- Template kartu akan dirender di sini oleh JS sebelum dicetak -->
+        </div>
+    </main>
+
+    <nav>
+        <button class="nav-btn active" onclick="switchTab('kelas', 'Kelas & Siswa', this)">Kelas</button>
+        <button class="nav-btn" onclick="switchTab('soal', 'Bank Soal', this)">Soal</button>
+        <button class="nav-btn" onclick="switchTab('kamera', 'Scan Jawaban', this)">Kamera</button>
+        <button class="nav-btn" onclick="switchTab('hasil', 'Rekap Nilai', this)">Hasil</button>
+    </nav>
+
+    <!-- Memanggil file Javascript -->
+    <script src="app.js"></script>
+</body>
+</html>
