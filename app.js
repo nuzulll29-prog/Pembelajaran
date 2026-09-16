@@ -31,7 +31,12 @@ let editingSoalId = null;
 
     // Soal lama mungkin tidak punya field "pilihan" (bug versi sebelumnya
     // tidak menyimpan pilihan A-D). Beri objek kosong agar tidak error saat dirender.
-    dbSoal.forEach(s => { if (!s.pilihan) s.pilihan = { A: '', B: '', C: '', D: '' }; });
+    // Soal lama juga mungkin belum punya mata pelajaran/materi.
+    dbSoal.forEach(s => {
+        if (!s.pilihan) s.pilihan = { A: '', B: '', C: '', D: '' };
+        if (!s.mapel) s.mapel = 'Umum';
+        if (s.materi === undefined) s.materi = '';
+    });
     localStorage.setItem('db_soal', JSON.stringify(dbSoal));
 })();
 
@@ -59,10 +64,19 @@ function switchTab(tabId, subtitle, btnElement) {
     document.getElementById('header-subtitle').innerText = subtitle;
 
     // Render ulang data saat pindah tab
+    if(tabId === 'beranda') renderBeranda();
     if(tabId === 'kelas') { renderKelasOptions(); renderSemuaKelas(); }
     if(tabId === 'soal') renderSoal();
     if(tabId === 'kamera') renderPilihanSoalKamera();
     if(tabId === 'hasil') renderHasil();
+}
+
+// Ringkasan angka di halaman Beranda
+function renderBeranda() {
+    document.getElementById('stat-kelas').innerText = dbKelas.length;
+    document.getElementById('stat-siswa').innerText = dbSiswa.length;
+    document.getElementById('stat-soal').innerText = dbSoal.length;
+    document.getElementById('stat-hasil').innerText = dbHasil.length;
 }
 
 // 3. FITUR KELAS & SISWA
@@ -226,6 +240,8 @@ function pilihKunci(huruf) {
 }
 
 function resetFormSoal() {
+    document.getElementById('mapel-soal').value = '';
+    document.getElementById('materi-soal').value = '';
     document.getElementById('teks-soal').value = '';
     document.getElementById('pil-a').value = '';
     document.getElementById('pil-b').value = '';
@@ -240,12 +256,15 @@ function resetFormSoal() {
 }
 
 function tambahSoal() {
+    let mapel = document.getElementById('mapel-soal').value.trim();
+    let materi = document.getElementById('materi-soal').value.trim();
     let teks = document.getElementById('teks-soal').value.trim();
     let a = document.getElementById('pil-a').value.trim();
     let b = document.getElementById('pil-b').value.trim();
     let c = document.getElementById('pil-c').value.trim();
     let d = document.getElementById('pil-d').value.trim();
 
+    if (!mapel) return alert("Mata pelajaran tidak boleh kosong!");
     if (!teks) return alert("Pertanyaan tidak boleh kosong!");
     if (!a || !b || !c || !d) return alert("Semua 4 pilihan jawaban harus diisi!");
     if (!kunciTerpilih) return alert("Tandai jawaban yang benar dengan menekan salah satu huruf A/B/C/D!");
@@ -254,13 +273,15 @@ function tambahSoal() {
 
     if (editingSoalId !== null) {
         let soal = dbSoal.find(s => s.id === editingSoalId);
+        soal.mapel = mapel;
+        soal.materi = materi;
         soal.teks = teks;
         soal.pilihan = pilihan;
         soal.kunci = kunciTerpilih;
         showToast('Soal berhasil diperbarui');
     } else {
         let idBaru = dbSoal.length > 0 ? Math.max(...dbSoal.map(s => s.id)) + 1 : 1;
-        dbSoal.push({ id: idBaru, teks: teks, pilihan: pilihan, kunci: kunciTerpilih });
+        dbSoal.push({ id: idBaru, mapel: mapel, materi: materi, teks: teks, pilihan: pilihan, kunci: kunciTerpilih });
         showToast('Soal berhasil disimpan');
     }
 
@@ -274,6 +295,8 @@ function editSoal(id) {
     if (!soal) return;
 
     editingSoalId = id;
+    document.getElementById('mapel-soal').value = soal.mapel || '';
+    document.getElementById('materi-soal').value = soal.materi || '';
     document.getElementById('teks-soal').value = soal.teks;
     document.getElementById('pil-a').value = soal.pilihan?.A || '';
     document.getElementById('pil-b').value = soal.pilihan?.B || '';
@@ -284,14 +307,37 @@ function editSoal(id) {
     document.getElementById('soal-form-heading').innerText = 'Edit Soal';
     document.getElementById('btn-simpan-soal').innerText = 'Perbarui Soal';
     document.getElementById('btn-batal-edit').style.display = 'block';
-    document.getElementById('teks-soal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('mapel-soal').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function batalEditSoal() {
     resetFormSoal();
 }
 
+// Saran mata pelajaran (datalist) berdasarkan yang pernah diketik sebelumnya
+function renderSaranMapel() {
+    let datalist = document.getElementById('daftar-mapel-suggest');
+    if (!datalist) return;
+    let daftarMapel = [...new Set(dbSoal.map(s => s.mapel).filter(Boolean))].sort();
+    datalist.innerHTML = daftarMapel.map(m => `<option value="${m}"></option>`).join('');
+}
+
+// Isi dropdown filter mata pelajaran di atas daftar soal
+function renderFilterMapel() {
+    let select = document.getElementById('filter-mapel-soal');
+    if (!select) return;
+    let sebelumnya = select.value;
+    let daftarMapel = [...new Set(dbSoal.map(s => s.mapel).filter(Boolean))].sort();
+    let html = '<option value="">Semua Mata Pelajaran</option>';
+    daftarMapel.forEach(m => { html += `<option value="${m}">${m}</option>`; });
+    select.innerHTML = html;
+    if (daftarMapel.includes(sebelumnya)) select.value = sebelumnya;
+}
+
 function renderSoal() {
+    renderSaranMapel();
+    renderFilterMapel();
+
     let container = document.getElementById('daftar-soal');
     let badge = document.getElementById('jumlah-soal-badge');
     if (badge) badge.innerText = dbSoal.length;
@@ -301,29 +347,56 @@ function renderSoal() {
         return;
     }
 
+    let filterMapel = document.getElementById('filter-mapel-soal')?.value || '';
+    let soalTampil = filterMapel ? dbSoal.filter(s => s.mapel === filterMapel) : dbSoal;
+
+    if (soalTampil.length === 0) {
+        container.innerHTML = `<p class="info-kosong">Tidak ada soal untuk mata pelajaran ini.</p>`;
+        return;
+    }
+
+    // Kelompokkan soal per mata pelajaran, tiap mapel dapat warna sendiri
+    let daftarMapelUnik = [...new Set(soalTampil.map(s => s.mapel || 'Umum'))];
+
     let html = '';
-    dbSoal.forEach((s, index) => {
-        let opsiHtml = '';
-        ['A', 'B', 'C', 'D'].forEach(huruf => {
-            let teksOpsi = s.pilihan ? s.pilihan[huruf] : '';
-            let benar = s.kunci === huruf;
-            opsiHtml += `<div class="opsi-preview ${benar ? 'opsi-benar' : ''}">
-                <span class="opsi-preview-huruf">${huruf}</span>
-                <span>${teksOpsi || '-'}</span>
+    daftarMapelUnik.forEach((mapel, idx) => {
+        let warna = paletteKelas[idx % paletteKelas.length];
+        let soalMapelIni = soalTampil.filter(s => (s.mapel || 'Umum') === mapel);
+        let inisial = mapel.trim().charAt(0).toUpperCase() || '?';
+
+        html += `<div class="card kelas-card" style="--kelas-color:${warna};">
+            <div class="kelas-card-header">
+                <div class="kelas-identitas">
+                    <span class="kelas-avatar">${inisial}</span>
+                    <h3>${mapel} <span class="badge">${soalMapelIni.length} soal</span></h3>
+                </div>
+            </div>`;
+
+        soalMapelIni.forEach((s, i) => {
+            let opsiHtml = '';
+            ['A', 'B', 'C', 'D'].forEach(huruf => {
+                let teksOpsi = s.pilihan ? s.pilihan[huruf] : '';
+                let benar = s.kunci === huruf;
+                opsiHtml += `<div class="opsi-preview ${benar ? 'opsi-benar' : ''}">
+                    <span class="opsi-preview-huruf">${huruf}</span>
+                    <span>${teksOpsi || '-'}</span>
+                </div>`;
+            });
+
+            html += `<div class="soal-item">
+                <div class="soal-item-header">
+                    <span class="soal-nomor">Soal ${i + 1}${s.materi ? ' • ' + s.materi : ''}</span>
+                    <div class="soal-item-aksi">
+                        <button class="btn-icon" onclick="editSoal(${s.id})">Edit</button>
+                        <button class="btn-icon btn-danger" onclick="hapusSoal(${s.id})">Hapus</button>
+                    </div>
+                </div>
+                <p class="soal-teks">${s.teks}</p>
+                <div class="opsi-preview-grid">${opsiHtml}</div>
             </div>`;
         });
 
-        html += `<div class="soal-item">
-            <div class="soal-item-header">
-                <span class="soal-nomor">Soal ${index + 1}</span>
-                <div class="soal-item-aksi">
-                    <button class="btn-icon" onclick="editSoal(${s.id})">Edit</button>
-                    <button class="btn-icon btn-danger" onclick="hapusSoal(${s.id})">Hapus</button>
-                </div>
-            </div>
-            <p class="soal-teks">${s.teks}</p>
-            <div class="opsi-preview-grid">${opsiHtml}</div>
-        </div>`;
+        html += `</div>`;
     });
     container.innerHTML = html;
 }
@@ -348,7 +421,10 @@ const OFFSET_ROTASI = 0;
 
 function renderPilihanSoalKamera() {
     let html = '<option value="">-- Pilih Soal --</option>';
-    dbSoal.forEach(s => { html += `<option value="${s.id}">Soal ${s.id}: ${s.teks}</option>`; });
+    dbSoal.forEach(s => {
+        let label = `${s.mapel || 'Umum'}${s.materi ? ' - ' + s.materi : ''}: ${s.teks}`;
+        html += `<option value="${s.id}">${label}</option>`;
+    });
     document.getElementById('pilih-soal-aktif').innerHTML = html;
 }
 
@@ -535,6 +611,7 @@ function cetakMarkerPDF() {
 
 // 8. INISIALISASI AWAL (Render saat aplikasi pertama dibuka)
 window.onload = () => {
+    renderBeranda();
     renderKelasOptions();
     renderSemuaKelas();
     renderSoal();

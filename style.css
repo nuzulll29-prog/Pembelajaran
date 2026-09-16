@@ -300,6 +300,26 @@ video { width: 100%; display: block; }
 }
 .btn-simpan-deteksi:disabled { background: var(--line); color: var(--ink-soft); cursor: not-allowed; }
 
+/* ---------- Halaman Beranda ---------- */
+.teks-deskripsi { font-size: 13.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.5; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.stat-box { background: var(--paper); border-radius: 10px; padding: 12px; text-align: center; }
+.stat-angka { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--ink); }
+.stat-label { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+
+.quick-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.quick-action-btn {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; text-align: left;
+    background: #fff; border: 1.5px solid var(--line); color: var(--ink);
+    padding: 12px; border-radius: 10px;
+    font-family: var(--font-body); font-weight: 600; font-size: 13.5px;
+    margin-top: 0;
+}
+.quick-action-btn svg { width: 20px; height: 20px; stroke: var(--accent-teal-dark); flex-shrink: 0; }
+.quick-action-btn:active { transform: scale(0.98); }
+
 /* ---------- Toast ---------- */
 .toast {
     position: fixed;

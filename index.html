@@ -36,13 +36,51 @@
         </div>
         <div class="header-text">
             <span class="header-title">Kuis AR</span>
-            <span class="header-subtitle" id="header-subtitle">Kelola kelas &amp; siswa</span>
+            <span class="header-subtitle" id="header-subtitle">Ringkasan aplikasi</span>
         </div>
     </header>
 
     <main>
+        <!-- HALAMAN 0: BERANDA -->
+        <section id="page-beranda" class="page active">
+            <div class="card">
+                <h3>Selamat datang di Kuis AR</h3>
+                <p class="teks-deskripsi">
+                    Aplikasi untuk membuat soal ulangan, mencetak kartu marker AR yang bisa diputar untuk menunjukkan jawaban, dan memindai jawaban siswa langsung lewat kamera HP.
+                </p>
+                <div class="stats-grid">
+                    <div class="stat-box"><div class="stat-angka" id="stat-kelas">0</div><div class="stat-label">Kelas</div></div>
+                    <div class="stat-box"><div class="stat-angka" id="stat-siswa">0</div><div class="stat-label">Siswa</div></div>
+                    <div class="stat-box"><div class="stat-angka" id="stat-soal">0</div><div class="stat-label">Soal</div></div>
+                    <div class="stat-box"><div class="stat-angka" id="stat-hasil">0</div><div class="stat-label">Nilai Tercatat</div></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Mulai Cepat</h3>
+                <div class="quick-actions">
+                    <button type="button" class="quick-action-btn" onclick="switchTab('kelas','Kelola kelas &amp; siswa', document.getElementById('nav-kelas'))">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.2c2.5.4 4.5 2.4 4.5 5.3"/></svg>
+                        Kelola Kelas &amp; Siswa
+                    </button>
+                    <button type="button" class="quick-action-btn" onclick="switchTab('soal','Buat &amp; kelola bank soal', document.getElementById('nav-soal'))">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><text x="12" y="16" text-anchor="middle" font-size="11" fill="currentColor" stroke="none" font-family="sans-serif">?</text></svg>
+                        Buat Soal Baru
+                    </button>
+                    <button type="button" class="quick-action-btn" onclick="switchTab('kamera','Pindai jawaban siswa', document.getElementById('nav-kamera'))">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>
+                        Mulai Scan Jawaban
+                    </button>
+                    <button type="button" class="quick-action-btn" onclick="switchTab('hasil','Rekap nilai siswa', document.getElementById('nav-hasil'))">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>
+                        Lihat Rekap Nilai
+                    </button>
+                </div>
+            </div>
+        </section>
+
         <!-- HALAMAN 1: KELAS & SISWA -->
-        <section id="page-kelas" class="page active">
+        <section id="page-kelas" class="page">
 
             <div class="card">
                 <h3>Tambah Kelas Baru</h3>
@@ -72,6 +110,13 @@
         <section id="page-soal" class="page">
             <div class="card">
                 <h3 id="soal-form-heading">Buat Soal Baru</h3>
+
+                <label class="field-label" for="mapel-soal">Mata Pelajaran</label>
+                <input type="text" id="mapel-soal" placeholder="Contoh: Matematika, IPA, Bahasa Indonesia" list="daftar-mapel-suggest">
+                <datalist id="daftar-mapel-suggest"></datalist>
+
+                <label class="field-label" for="materi-soal">Materi / Topik (opsional)</label>
+                <input type="text" id="materi-soal" placeholder="Contoh: Pecahan, Fotosintesis">
 
                 <label class="field-label" for="teks-soal">Pertanyaan</label>
                 <textarea id="teks-soal" rows="3" placeholder="Tulis pertanyaan di sini..."></textarea>
@@ -104,6 +149,8 @@
 
             <div class="card">
                 <h3>Daftar Soal <span class="badge" id="jumlah-soal-badge">0</span></h3>
+                <label class="field-label" for="filter-mapel-soal">Filter Mata Pelajaran</label>
+                <select id="filter-mapel-soal" onchange="renderSoal()"></select>
                 <div id="daftar-soal"></div>
             </div>
         </section>
@@ -151,19 +198,23 @@
     </main>
 
     <nav>
-        <button class="nav-btn active" onclick="switchTab('kelas', 'Kelola kelas &amp; siswa', this)">
+        <button class="nav-btn active" id="nav-beranda" onclick="switchTab('beranda', 'Ringkasan aplikasi', this)">
+            <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>
+            <span>Beranda</span>
+        </button>
+        <button class="nav-btn" id="nav-kelas" onclick="switchTab('kelas', 'Kelola kelas &amp; siswa', this)">
             <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.3"/><path d="M15.5 14.2c2.5.4 4.5 2.4 4.5 5.3"/></svg>
             <span>Kelas</span>
         </button>
-        <button class="nav-btn" onclick="switchTab('soal', 'Buat &amp; kelola bank soal', this)">
+        <button class="nav-btn" id="nav-soal" onclick="switchTab('soal', 'Buat &amp; kelola bank soal', this)">
             <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><text x="12" y="16" text-anchor="middle" font-size="11" fill="currentColor" stroke="none" font-family="sans-serif">?</text></svg>
             <span>Soal</span>
         </button>
-        <button class="nav-btn" onclick="switchTab('kamera', 'Pindai jawaban siswa', this)">
+        <button class="nav-btn" id="nav-kamera" onclick="switchTab('kamera', 'Pindai jawaban siswa', this)">
             <svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>
             <span>Kamera</span>
         </button>
-        <button class="nav-btn" onclick="switchTab('hasil', 'Rekap nilai siswa', this)">
+        <button class="nav-btn" id="nav-hasil" onclick="switchTab('hasil', 'Rekap nilai siswa', this)">
             <svg viewBox="0 0 24 24"><path d="M4 20V10M11 20V4M18 20v-7"/></svg>
             <span>Hasil</span>
         </button>
