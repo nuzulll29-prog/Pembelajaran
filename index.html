@@ -102,12 +102,17 @@
             <div id="semua-daftar-kelas"></div>
 
             <div class="card">
+                <h3>Cetak Kartu Marker</h3>
+                <label class="field-label" for="pilih-kelas-cetak">Kelas yang Dicetak</label>
+                <select id="pilih-kelas-cetak"></select>
+
                 <label class="field-label" for="ukuran-cetak-marker">Ukuran Kartu</label>
                 <select id="ukuran-cetak-marker">
                     <option value="2" selected>2 kartu per halaman A4 (besar)</option>
                     <option value="1">1 kartu per halaman A4 (paling besar)</option>
                 </select>
-                <button class="btn-cetak" onclick="cetakMarkerPDF()">Cetak Kartu Marker (PDF) — Semua Kelas</button>
+                <button class="btn-cetak" onclick="cetakMarkerPDF()">Cetak Kartu Marker (PDF)</button>
+                <p class="hint-kunci">Cara pakai: siswa memutar kartu sampai huruf jawaban berada di sisi ATAS, lalu tunjukkan ke kamera.</p>
             </div>
         </section>
 
