@@ -558,7 +558,22 @@ function hapusSemuaHasil() {
     }
 }
 
-// 7. FITUR CETAK PDF (dikelompokkan per kelas, kartu berisi marker asli)
+// 7. FITUR CETAK PDF (1 atau 2 kartu besar per halaman A4, dikelompokkan per kelas)
+const LEBAR_CETAK_PX = 760; // lebar tetap saat dirender ke PDF, tidak ikut lebar layar HP
+
+function buatBlokKartu(s, ukuranKartu, ukuranMarker, ukuranFont) {
+    let svgMarker = window.buatSVGMarker(s.id, ukuranMarker + 'px');
+    return `
+    <div style="border:2px solid #000; box-sizing:border-box; width:${ukuranKartu}px; height:${ukuranKartu}px; margin:0 auto; position:relative; text-align:center;">
+        <div style="position:absolute; top:10px; width:100%; font-weight:bold; font-size:${ukuranFont}px;">A</div>
+        <div style="position:absolute; bottom:10px; width:100%; font-weight:bold; font-size:${ukuranFont}px;">C</div>
+        <div style="position:absolute; left:12px; top:47%; font-weight:bold; font-size:${ukuranFont}px;">D</div>
+        <div style="position:absolute; right:12px; top:47%; font-weight:bold; font-size:${ukuranFont}px;">B</div>
+        <div style="display:flex; align-items:center; justify-content:center; height:100%;">${svgMarker}</div>
+        <div style="position:absolute; bottom:${Math.round(ukuranFont * 1.6)}px; width:100%; font-size:${Math.round(ukuranFont * 0.85)}px;">${s.nama}</div>
+    </div>`;
+}
+
 function cetakMarkerPDF() {
     if(dbSiswa.length === 0) return alert("Belum ada siswa!");
 
@@ -566,41 +581,51 @@ function cetakMarkerPDF() {
         return alert("Pustaka pembuat marker belum siap dimuat. Pastikan terhubung internet, tunggu beberapa detik, lalu coba lagi.");
     }
 
-    let areaCetak = document.getElementById('area-cetak');
-    areaCetak.style.display = 'block';
+    let kartuPerHalaman = parseInt(document.getElementById('ukuran-cetak-marker').value) || 2;
 
-    let htmlTemplate = `<p style="margin-bottom:10px;">Cara pakai: putar kartu sampai huruf jawaban berada di sisi ATAS, lalu tunjukkan ke kamera.</p>`;
+    // Ukuran kartu & marker menyesuaikan apakah 1 atau 2 kartu per halaman
+    let ukuranKartu = kartuPerHalaman === 1 ? 620 : 420;
+    let ukuranMarker = kartuPerHalaman === 1 ? 380 : 250;
+    let ukuranFont = kartuPerHalaman === 1 ? 20 : 16;
 
+    // Kumpulkan semua siswa beserta info kelasnya jadi satu daftar berurutan
+    let semuaSiswaDenganKelas = [];
     dbKelas.forEach(kelas => {
-        let siswaKelasIni = dbSiswa.filter(s => s.id_kelas === kelas.id);
-        if (siswaKelasIni.length === 0) return;
-
-        htmlTemplate += `<h2 style="margin-top:20px;">Kartu Marker - Kelas ${kelas.nama}</h2>
-            <div style="display:flex; flex-wrap:wrap; gap:20px; margin-bottom:10px;">`;
-
-        siswaKelasIni.forEach(s => {
-            let svgMarker = window.buatSVGMarker(s.id, '90px');
-            htmlTemplate += `
-            <div style="border:2px solid #000; width:170px; height:170px; position:relative; text-align:center;">
-                <div style="position:absolute; top:4px; width:100%; font-weight:bold;">A</div>
-                <div style="position:absolute; bottom:4px; width:100%; font-weight:bold;">C</div>
-                <div style="position:absolute; left:6px; top:47%; font-weight:bold;">D</div>
-                <div style="position:absolute; right:6px; top:47%; font-weight:bold;">B</div>
-                <div style="margin-top:34px;">${svgMarker}</div>
-                <div style="font-size:11px; margin-top:2px;">${s.nama}</div>
-            </div>`;
+        dbSiswa.filter(s => s.id_kelas === kelas.id).forEach(s => {
+            semuaSiswaDenganKelas.push({ siswa: s, kelas: kelas });
         });
-        htmlTemplate += '</div>';
     });
 
-    areaCetak.innerHTML = htmlTemplate;
+    // Susun jadi kelompok per halaman (1 atau 2 kartu tiap halaman)
+    let daftarHalaman = [];
+    for (let i = 0; i < semuaSiswaDenganKelas.length; i += kartuPerHalaman) {
+        daftarHalaman.push(semuaSiswaDenganKelas.slice(i, i + kartuPerHalaman));
+    }
+
+    let potonganHtml = daftarHalaman.map((halaman, idx) => {
+        let isiHalaman = halaman.map(({ siswa, kelas }) => `
+            <p style="text-align:center; font-size:13px; color:#555; margin-bottom:8px;">Kelas ${kelas.nama}</p>
+            ${buatBlokKartu(siswa, ukuranKartu, ukuranMarker, ukuranFont)}
+        `).join('<div style="height:24px;"></div>');
+
+        let gayaPemisah = idx < daftarHalaman.length - 1 ? 'page-break-after: always;' : '';
+        return `<div style="${gayaPemisah} padding-top:10px;">${isiHalaman}</div>`;
+    }).join('');
+
+    let areaCetak = document.getElementById('area-cetak');
+    areaCetak.style.display = 'block';
+    areaCetak.style.width = LEBAR_CETAK_PX + 'px';
+    areaCetak.innerHTML = `<p style="font-size:13px; margin-bottom:10px;">Cara pakai: putar kartu sampai huruf jawaban berada di sisi ATAS, lalu tunjukkan ke kamera.</p>` + potonganHtml;
 
     let opt = {
-        margin:       1,
+        margin:       0.4,
         filename:     'Kartu_Marker_Semua_Kelas.pdf',
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        // windowWidth dikunci supaya render TIDAK mengikuti lebar layar HP
+        // (penyebab kartu & teks terpotong sebelumnya).
+        html2canvas:  { scale: 2, windowWidth: LEBAR_CETAK_PX, width: LEBAR_CETAK_PX },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
     };
 
     html2pdf().set(opt).from(areaCetak).save().then(() => {

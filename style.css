@@ -342,4 +342,4 @@ video { width: 100%; display: block; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ---------- Area Cetak PDF Tersembunyi ---------- */
-#area-cetak { display: none; padding: 20px; background: white; width: 800px; font-family: var(--font-body); }
+#area-cetak { display: none; padding: 20px; box-sizing: border-box; background: white; font-family: var(--font-body); }
