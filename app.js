@@ -80,13 +80,13 @@ function avatarSVG(color, gender){
 }
 function avatarOf(s){
   if(typeof s.avatarLib === 'number' && AVATAR_LIBRARY[s.avatarLib]){
-    return `<img src="${AVATAR_LIBRARY[s.avatarLib]}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    return `<img src="${AVATAR_LIBRARY[s.avatarLib]}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`;
   }
   if(s.avatarKey && STOCK_PHOTOS[s.avatarKey]){
-    return `<img src="${STOCK_PHOTOS[s.avatarKey]}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    return `<img src="${STOCK_PHOTOS[s.avatarKey]}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`;
   }
   if(s.photo){ // legacy: full image saved directly on old data
-    return `<img src="${s.photo}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    return `<img src="${s.photo}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`;
   }
   const st = avatarStyle(s.avatarIdx ?? 0);
   return avatarSVG(st.fg, s.gender==='P'?'P':'L');
@@ -350,15 +350,17 @@ function renderBeranda(){
     const st = avatarStyle(s.avatarIdx ?? i);
     return `
     <div class="student-card" data-id="${s.id}" data-open-student="${s.id}">
-      <div class="avatar-ring" style="background:${st.bg}">${avatarOf(s)}</div>
+      <div class="avatar-wrap">
+        <div class="avatar-ring" style="background:${st.bg}">${avatarOf(s)}</div>
+        <div class="pt-badge">⭐${s.points}</div>
+      </div>
       <div class="student-name">${s.name.split(' ')[0]}</div>
-      <div class="pt-pill">⭐ ${s.points}</div>
     </div>`;
   }).join('');
 
   return `
-    <div class="section-title">Aksi Cepat</div>
-    <div class="quick-grid">${quick}</div>
+    <div class="section-title">Siswa <span class="sub">${students.length} anak</span></div>
+    <div class="student-grid">${cards || '<div class="empty-note">Belum ada siswa. Tambahkan di tab Profil.</div>'}</div>
 
     <div class="notif-banner" id="notifBanner">
       <span class="ic">📣</span>
@@ -366,8 +368,8 @@ function renderBeranda(){
       <span class="chev">›</span>
     </div>
 
-    <div class="section-title">Siswa <span class="sub">${students.length} anak</span></div>
-    <div class="student-grid">${cards || '<div class="empty-note">Belum ada siswa. Tambahkan di tab Profil.</div>'}</div>
+    <div class="section-title">Aksi Cepat</div>
+    <div class="quick-grid">${quick}</div>
   `;
 }
 
