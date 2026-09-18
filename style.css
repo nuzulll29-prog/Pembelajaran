@@ -161,6 +161,34 @@
     0%{box-shadow:0 0 0 0 rgba(232,185,62,0.6);} 100%{box-shadow:var(--shadow-sm);}
   }
 
+  /* ABSENSI (FUN TAP-TO-MARK) */
+  .absen-hint{font-size:12px;color:var(--ink-soft);font-weight:700;margin:0 0 14px;text-align:center;}
+  .absen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:16px 8px;}
+  .absen-card{text-align:center;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;}
+  .absen-card .avatar-ring{box-shadow:var(--shadow-sm);}
+  .absen-badge{
+    position:absolute;right:-4px;bottom:-4px;width:24px;height:24px;border-radius:50%;
+    background:var(--bg-elevated);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;
+    font-size:12px;box-shadow:var(--shadow-sm);
+  }
+  .absen-status-label{display:inline-block;font-size:10px;font-weight:800;color:var(--ink);padding:2px 8px;border-radius:10px;margin-top:2px;}
+  @keyframes absenBounce{
+    0%{transform:scale(1) rotate(0);}
+    30%{transform:scale(1.2) rotate(-5deg);}
+    55%{transform:scale(.9) rotate(4deg);}
+    100%{transform:scale(1) rotate(0);}
+  }
+  .absen-bounce{animation:absenBounce .45s ease;}
+  .absen-fly{
+    position:absolute;left:50%;top:-2px;transform:translateX(-50%);font-size:22px;pointer-events:none;
+    animation:absenFly .8s ease forwards;
+  }
+  @keyframes absenFly{
+    0%{opacity:0;transform:translate(-50%,4px) scale(.6);}
+    25%{opacity:1;transform:translate(-50%,-8px) scale(1.2);}
+    100%{opacity:0;transform:translate(-50%,-36px) scale(1);}
+  }
+
   /* MATERI LIST */
   .materi-item{
     background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;
