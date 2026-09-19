@@ -93,14 +93,17 @@ const MATERI_ICONS = ['📗','📘','📙','🕋','🤲','📜'];
 function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
 // Opens a quran.com path (e.g. "2/1-5") in the official "Quran for Android" app
 // (com.quran.labs.androidquran) if installed, otherwise falls back to the quran.com website.
-// The intent:// trick works regardless of the phone's "open supported links" setting, which
-// is often off by default (Samsung/Xiaomi etc.) and was why it kept opening the browser.
+// Must run as a direct, synchronous result of the button tap (a genuine user gesture) and
+// navigate the CURRENT tab — Chrome only resolves intent:// this way; wrapping it in
+// window.open()/a new tab makes Chrome treat it as a plain link and it just loads the website.
+// If Android successfully hands off to the app, this page is left untouched in the background;
+// it only actually navigates away if the app isn't found (then the fallback URL loads here).
 function openQuranLink(path){
   const webUrl = `https://quran.com/${path}`;
   const isAndroid = /Android/i.test(navigator.userAgent);
   if(isAndroid){
     const intentUrl = `intent://quran.com/${path}#Intent;scheme=https;package=com.quran.labs.androidquran;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
-    window.open(intentUrl, '_blank');
+    window.location.href = intentUrl;
   } else {
     window.open(webUrl, '_blank');
   }
