@@ -75,11 +75,18 @@ const AVATAR_STYLES = [
 ];
 const ACTIONS = {
   absensi:{ label:'Absensi', icon:'📋', bg:'var(--blue-soft)' },
-  nilai:{ label:'Nilai Harian', icon:'✏️', bg:'var(--purple-soft)' },
-  ujian:{ label:'Ujian', icon:'📝', bg:'var(--pink-soft)' },
+  nilai:{ label:'Input Nilai', icon:'✏️', bg:'var(--purple-soft)' },
+  raport:{ label:'Nilai Raport', icon:'📊', bg:'var(--pink-soft)' },
   piket:{ label:'Jadwal Piket', icon:'🧹', bg:'var(--peach-soft)' },
   quran:{ label:"Darus & Murojaah", icon:'📖', bg:'var(--teal-soft)' },
   poin:{ label:'Poin Manual', icon:'⭐', bg:'var(--gold-soft)' },
+};
+// Icon/label lookup for activity-log entries (includes retired action keys like 'ujian'
+// so old history still displays correctly even though it's no longer its own quick action).
+const LOG_META = {
+  ...ACTIONS,
+  nilai:{ label:'Nilai Harian', icon:'✏️' },
+  ujian:{ label:'Ujian', icon:'📝' },
 };
 const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 const MATERI_ICONS = ['📗','📘','📙','🕋','🤲','📜'];
@@ -137,14 +144,20 @@ function guessGender(name){
 }
 function migrateGenders(){
   let changed = false;
-  (state.students||[]).forEach(s=>{
+  if(!Array.isArray(state.grades)){ state.grades = []; changed = true; }
+  if(!Array.isArray(state.raport)){ state.raport = []; changed = true; }
+  (state.students||[]).forEach((s,i)=>{
     if(s.gender!=='L' && s.gender!=='P'){ s.gender = guessGender(s.name); changed = true; }
-    if(!s.avatarKey && typeof s.avatarLib !== 'number'){
-      const key = s.name.trim().split(/\s+/)[0].toLowerCase();
-      if(STOCK_PHOTOS[key]) { s.avatarKey = key; changed = true; }
+    // old demo/legacy avatars used generic stock photos that don't crop well — switch everyone
+    // (including anyone previously auto-assigned one) over to the proper avatar library.
+    if(s.avatarKey || typeof s.avatarLib !== 'number'){
+      const lib = avatarLibFor(s.gender);
+      s.avatarLib = ((s.avatarIdx ?? i) % lib.length + lib.length) % lib.length;
+      delete s.avatarKey;
+      changed = true;
     }
     // shrink doc size: drop any old fully-embedded photo now that we have a lightweight reference
-    if(s.photo && (s.avatarKey || typeof s.avatarLib === 'number')){
+    if(s.photo && typeof s.avatarLib === 'number'){
       delete s.photo;
       changed = true;
     }
@@ -157,9 +170,17 @@ function defaultState(){
   const names = ['Aldi Ramadhan','Fahri Hidayat','Aisyah Putri','Rizky Maulana','Nabila Zahra','Hasan Al Farizi','Salsabila Nur','Dimas Prasetyo'];
   const genders = ['L','L','P','L','P','L','P','L'];
   const pts = [25,35,28,20,18,22,16,27];
+  let bCount=0, gCount=0;
   return {
-    students: names.map((n,i)=>({ id:uid(), name:n, avatarIdx:i, gender:genders[i], avatarKey:n.split(' ')[0].toLowerCase(), points:pts[i] })),
+    students: names.map((n,i)=>{
+      const gender = genders[i];
+      const lib = avatarLibFor(gender);
+      const avatarLib = (gender==='P' ? (gCount++) : (bCount++)) % lib.length;
+      return { id:uid(), name:n, avatarIdx:i, gender, avatarLib, points:pts[i] };
+    }),
     logs: [],
+    grades: [],
+    raport: [],
     materi: [
       {id:uid(), title:'Iqra Jilid 3', category:'Baca Al-Quran', done:false},
       {id:uid(), title:'Tajwid: Hukum Nun Mati', category:'Tajwid', done:false},
@@ -384,26 +405,32 @@ function renderBeranda(){
       <span class="label">${a.label}</span>
     </button>`).join('');
 
+  const maxPts = students.length ? Math.max(...students.map(s=>s.points||0)) : 0;
   const cards = students.map((s,i)=>{
     const st = avatarStyle(s.avatarIdx ?? i);
+    const isTop = maxPts>0 && (s.points||0)===maxPts;
     return `
-    <div class="student-card" data-id="${s.id}" data-open-student="${s.id}">
+    <div class="student-card ${isTop?'top-scorer':''}" data-id="${s.id}" data-open-student="${s.id}">
       <div class="avatar-wrap">
+        ${isTop?'<span class="crown">👑</span><span class="spark spark-a">✨</span><span class="spark spark-b">⭐</span>':''}
         <div class="avatar-ring" style="background:${st.bg}">${avatarOf(s)}</div>
         <div class="pt-badge">⭐${s.points}</div>
       </div>
       <div class="student-name">${s.name.split(' ')[0]}</div>
+      ${isTop?'<div class="top-tag">Juara Poin!</div>':''}
     </div>`;
   }).join('');
 
   return `
-    <div class="section-title">Siswa <span class="sub">${students.length} anak</span></div>
-    <div class="student-grid">${cards || '<div class="empty-note">Belum ada siswa. Tambahkan di tab Profil.</div>'}</div>
+    <div class="beranda-scene">
+      <div class="section-title on-scene">Siswa <span class="sub">${students.length} anak</span></div>
+      <div class="student-grid">${cards || '<div class="empty-note">Belum ada siswa. Tambahkan di tab Profil.</div>'}</div>
 
-    <div class="notif-banner" id="notifBanner">
-      <span class="ic">📣</span>
-      <div class="txt">Hari ini ada <b>${todayStudentIds.length} siswa</b> yang mendapat poin!</div>
-      <span class="chev">›</span>
+      <div class="notif-banner" id="notifBanner">
+        <span class="ic">📣</span>
+        <div class="txt">Hari ini ada <b>${todayStudentIds.length} siswa</b> yang mendapat poin!</div>
+        <span class="chev">›</span>
+      </div>
     </div>
 
     <div class="section-title">Aksi Cepat</div>
@@ -415,7 +442,7 @@ function openTodayLog(){
   const todayLogs = state.logs.filter(l=>l.date===todayKey());
   const rows = todayLogs.map(l=>{
     const s = state.students.find(x=>x.id===l.studentId);
-    const a = ACTIONS[l.type] || {icon:'⭐',label:'Poin'};
+    const a = LOG_META[l.type] || {icon:'⭐',label:'Poin'};
     return `<div class="form-row">
       <div class="av-sm" style="background:var(--sage-soft)">${s?avatarOf(s):'?'}</div>
       <div class="fname">${s?s.name.split(' ')[0]:'—'}<div class="mini-note">${a.icon} ${a.label}${l.note?' · '+l.note:''}</div></div>
@@ -631,7 +658,7 @@ function openStudentDetail(id){
   const st = avatarStyle(s.avatarIdx ?? 0);
   const logs = state.logs.filter(l=>l.studentId===id).slice(0,20);
   const logRows = logs.map(l=>{
-    const a = ACTIONS[l.type] || {icon:'⭐', label:'Poin'};
+    const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
     return `<div class="form-row">
       <div class="av-sm" style="background:var(--sage-soft);color:var(--header)">${a.icon}</div>
       <div class="fname">${a.label}${l.note?' · '+l.note:''}<div class="mini-note">${l.date}</div></div>
@@ -639,11 +666,24 @@ function openStudentDetail(id){
     </div>`;
   }).join('') || '<div class="empty-note">Belum ada riwayat.</div>';
 
+  const raportRows = (state.raport||[]).filter(r=>r.studentId===id).sort((a,b)=>a.mapel.localeCompare(b.mapel));
+  const raportHtml = raportRows.length ? `
+    <div class="field-label">Nilai Raport</div>
+    ${raportRows.map(r=>`
+      <div class="raport-row">
+        <div class="fname" style="flex:1;">${r.mapel}</div>
+        <div class="raport-mini">H:${r.avgHarian ?? '—'}</div>
+        <div class="raport-mini">U:${r.avgUjian ?? '—'}</div>
+        <div class="raport-final">${r.nilai}</div>
+      </div>`).join('')}
+  ` : '';
+
   openModal(s.name, `
     <div style="text-align:center;margin-bottom:14px;">
       <div class="avatar-ring" style="background:${st.bg};margin:0 auto 8px;width:70px;height:70px;">${avatarOf(s)}</div>
       <div class="pt-pill" style="font-size:14px;padding:5px 14px;">⭐ ${s.points} Poin</div>
     </div>
+    ${raportHtml}
     <div class="field-label">Riwayat Aktivitas</div>
     ${logRows}
   `, `
@@ -680,7 +720,7 @@ function studentRowsTemplate(renderRight){
 function openActionModal(key){
   if(key==='absensi') return openAbsensiModal();
   if(key==='nilai') return openNilaiModal();
-  if(key==='ujian') return openUjianModal();
+  if(key==='raport') return openRaportModal();
   if(key==='piket') return openPiketModal();
   if(key==='quran') return openQuranModal();
   if(key==='poin') return openPoinModal();
@@ -757,63 +797,144 @@ function openAbsensiModal(){
   };
 }
 
-/* --- NILAI HARIAN --- */
+/* --- INPUT NILAI (Harian / Ujian digabung) --- */
 function openNilaiModal(){
+  let jenis = 'harian'; // harian | ujian
   const scores = {};
+
   function rowsHtml(){
     return studentRowsTemplate((s)=>`
-      <input type="number" min="0" max="100" class="num-input" placeholder="—" data-score-for="${s.id}" />`);
+      <input type="number" min="0" max="100" class="num-input" placeholder="—" data-score-for="${s.id}" value="${scores[s.id]??''}" />`);
   }
-  openModal('Nilai Harian', `
-    <div class="field-label">Mata Pelajaran</div>
-    <input class="text-input" id="nSubject" placeholder="Contoh: Bahasa Arab" />
-    <div class="field-label">Nilai per Siswa (0–100, kosongkan jika belum dinilai)</div>
-    <div id="nRows">${rowsHtml()}</div>
-  `, `<button class="save-btn" id="nSave">Simpan Nilai</button>`);
 
-  document.getElementById('nSave').onclick = ()=>{
-    const subject = document.getElementById('nSubject').value.trim() || 'Nilai Harian';
-    const deltas = [];
-    document.querySelectorAll('[data-score-for]').forEach(inp=>{
-      const v = inp.value.trim();
-      if(v==='') return;
-      const score = clamp(parseInt(v,10)||0,0,100);
-      deltas.push({studentId:inp.dataset.scoreFor, delta:Math.round(score/10)});
+  function bodyHtml(){
+    return `
+      <div class="tab-toggle">
+        <button class="${jenis==='harian'?'active':''}" data-njenis="harian">✏️ Nilai Harian</button>
+        <button class="${jenis==='ujian'?'active':''}" data-njenis="ujian">📝 Ujian</button>
+      </div>
+      <div class="field-label">Mata Pelajaran</div>
+      <input class="text-input" id="nSubject" placeholder="Contoh: Bahasa Arab" value="${(bodyHtml.mapel||'').replace(/"/g,'&quot;')}" />
+      ${jenis==='ujian' ? `
+      <div class="field-label">Keterangan Ujian (opsional)</div>
+      <input class="text-input" id="nKet" placeholder="Contoh: UTS Semester 1" value="${(bodyHtml.ket||'').replace(/"/g,'&quot;')}" />` : ''}
+      <div class="field-label">Nilai per Siswa (0–100, kosongkan jika belum dinilai)</div>
+      <div id="nRows">${rowsHtml()}</div>
+    `;
+  }
+  bodyHtml.mapel = ''; bodyHtml.ket = '';
+
+  function captureFields(){
+    const subj = document.getElementById('nSubject');
+    if(subj) bodyHtml.mapel = subj.value;
+    const ket = document.getElementById('nKet');
+    if(ket) bodyHtml.ket = ket.value;
+    document.querySelectorAll('[data-score-for]').forEach(inp=>{ scores[inp.dataset.scoreFor] = inp.value; });
+  }
+
+  function draw(){
+    openModal(jenis==='ujian' ? 'Input Nilai — Ujian' : 'Input Nilai — Harian', bodyHtml(), `<button class="save-btn" id="nSave">Simpan Nilai</button>`);
+    document.querySelectorAll('[data-njenis]').forEach(btn=>{
+      btn.onclick = ()=>{ captureFields(); jenis = btn.dataset.njenis; draw(); };
     });
-    if(deltas.length===0){ closeModal(); return; }
-    const {touched,totalPositive} = applyDeltas(deltas, subject, 'nilai');
-    closeModal();
-    showCelebration(totalPositive, `Nilai "${subject}" tersimpan untuk ${deltas.length} siswa.`, touched);
-  };
+    document.querySelectorAll('[data-score-for]').forEach(inp=>{
+      inp.oninput = ()=>{ scores[inp.dataset.scoreFor] = inp.value; };
+    });
+    document.getElementById('nSave').onclick = ()=>{
+      const subject = (document.getElementById('nSubject').value.trim()) || (jenis==='ujian' ? 'Ujian' : 'Nilai Harian');
+      const ketEl = document.getElementById('nKet');
+      const ket = ketEl ? ketEl.value.trim() : '';
+      const deltas = [];
+      const gradeEntries = [];
+      document.querySelectorAll('[data-score-for]').forEach(inp=>{
+        const v = inp.value.trim();
+        if(v==='') return;
+        const score = clamp(parseInt(v,10)||0,0,100);
+        const pointDelta = jenis==='ujian' ? Math.round(score/5) : Math.round(score/10);
+        deltas.push({studentId:inp.dataset.scoreFor, delta:pointDelta});
+        gradeEntries.push({ id:uid(), studentId:inp.dataset.scoreFor, mapel:subject, jenis, keterangan:ket, nilai:score, date:todayKey(), ts:Date.now() });
+      });
+      if(deltas.length===0){ closeModal(); return; }
+      state.grades = state.grades || [];
+      gradeEntries.forEach(g=> state.grades.unshift(g));
+      if(state.grades.length > 800) state.grades = state.grades.slice(0,800);
+      const noteLabel = (jenis==='ujian' && ket) ? `${subject} — ${ket}` : subject;
+      const {touched,totalPositive} = applyDeltas(deltas, noteLabel, jenis==='ujian'?'ujian':'nilai');
+      closeModal();
+      showCelebration(totalPositive, `Nilai "${noteLabel}" tersimpan untuk ${deltas.length} siswa.`, touched);
+    };
+  }
+  draw();
 }
 
-/* --- UJIAN --- */
-function openUjianModal(){
-  function rowsHtml(){
-    return studentRowsTemplate((s)=>`
-      <input type="number" min="0" max="100" class="num-input" placeholder="—" data-score-for="${s.id}" />`);
-  }
-  openModal('Ujian', `
-    <div class="field-label">Nama Ujian</div>
-    <input class="text-input" id="uName" placeholder="Contoh: Ujian Tengah Semester" />
-    <div class="field-label">Nilai per Siswa (0–100, kosongkan jika belum ujian)</div>
-    <div id="uRows">${rowsHtml()}</div>
-  `, `<button class="save-btn" id="uSave">Simpan Ujian</button>`);
+/* --- NILAI RAPORT (olahan dari Nilai Harian + Ujian) --- */
+function openRaportModal(){
+  const mapelList = Array.from(new Set((state.grades||[]).map(g=>g.mapel))).sort((a,b)=>a.localeCompare(b));
+  let mapel = mapelList[0] || '';
 
-  document.getElementById('uSave').onclick = ()=>{
-    const examName = document.getElementById('uName').value.trim() || 'Ujian';
-    const deltas = [];
-    document.querySelectorAll('[data-score-for]').forEach(inp=>{
-      const v = inp.value.trim();
-      if(v==='') return;
-      const score = clamp(parseInt(v,10)||0,0,100);
-      deltas.push({studentId:inp.dataset.scoreFor, delta:Math.round(score/5)});
+  function computeRows(){
+    return (state.students||[]).map((s,i)=>{
+      const g = (state.grades||[]).filter(x=>x.studentId===s.id && x.mapel===mapel);
+      const harian = g.filter(x=>x.jenis==='harian').map(x=>x.nilai);
+      const ujian = g.filter(x=>x.jenis==='ujian').map(x=>x.nilai);
+      const avgH = harian.length ? Math.round(harian.reduce((a,b)=>a+b,0)/harian.length) : null;
+      const avgU = ujian.length ? Math.round(ujian.reduce((a,b)=>a+b,0)/ujian.length) : null;
+      let nilai = null;
+      if(avgH!=null && avgU!=null) nilai = Math.round(avgH*0.4 + avgU*0.6);
+      else if(avgH!=null) nilai = avgH;
+      else if(avgU!=null) nilai = avgU;
+      return {s, i, avgH, avgU, nilai};
     });
-    if(deltas.length===0){ closeModal(); return; }
-    const {touched,totalPositive} = applyDeltas(deltas, examName, 'ujian');
-    closeModal();
-    showCelebration(totalPositive, `Hasil "${examName}" tersimpan untuk ${deltas.length} siswa.`, touched);
-  };
+  }
+
+  function bodyHtml(){
+    if(mapelList.length===0){
+      return `<div class="empty-note">Belum ada data nilai. Isi <b>Input Nilai</b> (Harian/Ujian) dulu, nanti otomatis muncul di sini.</div>`;
+    }
+    const rows = computeRows();
+    const rowsHtml = rows.map(({s,i,avgH,avgU,nilai})=>{
+      const st = avatarStyle(s.avatarIdx ?? i);
+      return `<div class="raport-row">
+        <div class="av-sm" style="background:${st.bg}">${avatarOf(s)}</div>
+        <div class="fname" style="flex:1;">${s.name.split(' ')[0]}</div>
+        <div class="raport-mini">${avgH ?? '—'}</div>
+        <div class="raport-mini">${avgU ?? '—'}</div>
+        <div class="raport-final">${nilai ?? '—'}</div>
+      </div>`;
+    }).join('');
+    return `
+      <div class="field-label">Pilih Mata Pelajaran</div>
+      <select class="text-input" id="rMapel">${mapelList.map(m=>`<option value="${m.replace(/"/g,'&quot;')}" ${m===mapel?'selected':''}>${m}</option>`).join('')}</select>
+      <div class="field-label">Rekap Nilai <span class="sub">Rapor = 40% Harian + 60% Ujian</span></div>
+      <div class="raport-row raport-head">
+        <div style="width:34px;"></div>
+        <div style="flex:1;font-size:10.5px;font-weight:800;color:var(--ink-soft);">Siswa</div>
+        <div class="raport-mini head">Harian</div>
+        <div class="raport-mini head">Ujian</div>
+        <div class="raport-final head">Rapor</div>
+      </div>
+      <div id="rRows">${rowsHtml}</div>
+    `;
+  }
+
+  function draw(){
+    openModal('Nilai Raport', bodyHtml(), mapelList.length ? `<button class="save-btn" id="rSave">Simpan sebagai Nilai Raport</button>` : '');
+    const sel = document.getElementById('rMapel');
+    if(sel) sel.onchange = ()=>{ mapel = sel.value; draw(); };
+    const saveBtn = document.getElementById('rSave');
+    if(saveBtn) saveBtn.onclick = ()=>{
+      const rows = computeRows().filter(r=>r.nilai!=null);
+      if(rows.length===0){ showToast('Belum ada nilai yang bisa diolah untuk mapel ini'); return; }
+      state.raport = (state.raport||[]).filter(r=>r.mapel!==mapel);
+      rows.forEach(({s,avgH,avgU,nilai})=>{
+        state.raport.push({ id:uid(), studentId:s.id, mapel, avgHarian:avgH, avgUjian:avgU, nilai, ts:Date.now() });
+      });
+      saveAndRender();
+      closeModal();
+      showToast(`Nilai Raport "${mapel}" tersimpan untuk ${rows.length} siswa.`);
+    };
+  }
+  draw();
 }
 
 /* --- PIKET --- */
@@ -881,19 +1002,58 @@ function openPiketModal(){
 }
 
 /* --- DARUS & MUROJAAH --- */
+const SURAH_LIST = [
+  [1,"Al-Fatihah"],[2,"Al-Baqarah"],[3,"Ali 'Imran"],[4,"An-Nisa'"],[5,"Al-Ma'idah"],
+  [6,"Al-An'am"],[7,"Al-A'raf"],[8,"Al-Anfal"],[9,"At-Taubah"],[10,"Yunus"],
+  [11,"Hud"],[12,"Yusuf"],[13,"Ar-Ra'd"],[14,"Ibrahim"],[15,"Al-Hijr"],
+  [16,"An-Nahl"],[17,"Al-Isra'"],[18,"Al-Kahf"],[19,"Maryam"],[20,"Ta-Ha"],
+  [21,"Al-Anbiya'"],[22,"Al-Hajj"],[23,"Al-Mu'minun"],[24,"An-Nur"],[25,"Al-Furqan"],
+  [26,"Asy-Syu'ara'"],[27,"An-Naml"],[28,"Al-Qasas"],[29,"Al-'Ankabut"],[30,"Ar-Rum"],
+  [31,"Luqman"],[32,"As-Sajdah"],[33,"Al-Ahzab"],[34,"Saba'"],[35,"Fatir"],
+  [36,"Yasin"],[37,"As-Saffat"],[38,"Sad"],[39,"Az-Zumar"],[40,"Ghafir"],
+  [41,"Fussilat"],[42,"Asy-Syura"],[43,"Az-Zukhruf"],[44,"Ad-Dukhan"],[45,"Al-Jasiyah"],
+  [46,"Al-Ahqaf"],[47,"Muhammad"],[48,"Al-Fath"],[49,"Al-Hujurat"],[50,"Qaf"],
+  [51,"Az-Zariyat"],[52,"At-Tur"],[53,"An-Najm"],[54,"Al-Qamar"],[55,"Ar-Rahman"],
+  [56,"Al-Waqi'ah"],[57,"Al-Hadid"],[58,"Al-Mujadilah"],[59,"Al-Hasyr"],[60,"Al-Mumtahanah"],
+  [61,"As-Saff"],[62,"Al-Jumu'ah"],[63,"Al-Munafiqun"],[64,"At-Tagabun"],[65,"At-Talaq"],
+  [66,"At-Tahrim"],[67,"Al-Mulk"],[68,"Al-Qalam"],[69,"Al-Haqqah"],[70,"Al-Ma'arij"],
+  [71,"Nuh"],[72,"Al-Jinn"],[73,"Al-Muzzammil"],[74,"Al-Muddassir"],[75,"Al-Qiyamah"],
+  [76,"Al-Insan"],[77,"Al-Mursalat"],[78,"An-Naba'"],[79,"An-Nazi'at"],[80,"'Abasa"],
+  [81,"At-Takwir"],[82,"Al-Infitar"],[83,"Al-Mutaffifin"],[84,"Al-Insyiqaq"],[85,"Al-Buruj"],
+  [86,"At-Tariq"],[87,"Al-A'la"],[88,"Al-Gasyiyah"],[89,"Al-Fajr"],[90,"Al-Balad"],
+  [91,"Asy-Syams"],[92,"Al-Lail"],[93,"Ad-Duha"],[94,"Al-Insyirah"],[95,"At-Tin"],
+  [96,"Al-'Alaq"],[97,"Al-Qadr"],[98,"Al-Bayyinah"],[99,"Az-Zalzalah"],[100,"Al-'Adiyat"],
+  [101,"Al-Qari'ah"],[102,"At-Takasur"],[103,"Al-'Asr"],[104,"Al-Humazah"],[105,"Al-Fil"],
+  [106,"Quraisy"],[107,"Al-Ma'un"],[108,"Al-Kausar"],[109,"Al-Kafirun"],[110,"An-Nasr"],
+  [111,"Al-Lahab"],[112,"Al-Ikhlas"],[113,"Al-Falaq"],[114,"An-Nas"],
+];
+function surahOptionsHtml(selected){
+  const opts = SURAH_LIST.map(([n,name])=>`<option value="${n}" ${String(selected)===String(n)?'selected':''}>${n}. ${name}</option>`).join('');
+  return `<option value="">Pilih Surat</option>${opts}`;
+}
+
 function openQuranModal(){
   let mode = 'darus'; // darus | murojaah
-  const notes = {};
   const checked = {};
+  const surahSel = {};
+  const ayatFrom = {};
+  const ayatTo = {};
 
   function bodyHtml(){
     const rows = (state.students||[]).map((s,i)=>{
       const st = avatarStyle(s.avatarIdx ?? i);
-      return `<div class="form-row">
-        <div class="av-sm" style="background:${st.bg}">${avatarOf(s)}</div>
-        <div class="fname" style="min-width:64px;">${s.name.split(' ')[0]}</div>
-        <input class="text-input" style="margin:0;flex:1;padding:7px 10px;font-size:12px;" placeholder="Surat / Ayat" data-qnote="${s.id}" value="${notes[s.id]||''}" />
-        <button class="chk-box ${checked[s.id]?'on':''}" data-qchk="${s.id}">${checked[s.id]?'✓':''}</button>
+      return `<div class="quran-row">
+        <div class="qr-top">
+          <div class="av-sm" style="background:${st.bg}">${avatarOf(s)}</div>
+          <div class="fname" style="flex:1;">${s.name.split(' ')[0]}</div>
+          <button class="chk-box ${checked[s.id]?'on':''}" data-qchk="${s.id}">${checked[s.id]?'✓':''}</button>
+        </div>
+        <div class="qr-fields">
+          <select class="qr-select" data-qsurah="${s.id}">${surahOptionsHtml(surahSel[s.id])}</select>
+          <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qfrom="${s.id}" value="${ayatFrom[s.id]||''}">
+          <input type="number" min="1" class="qr-ayat" placeholder="s.d." data-qto="${s.id}" value="${ayatTo[s.id]||''}">
+          <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
+        </div>
       </div>`;
     }).join('');
     return `
@@ -901,7 +1061,7 @@ function openQuranModal(){
         <button class="${mode==='darus'?'active':''}" data-qmode="darus">📖 Darus Qur'an</button>
         <button class="${mode==='murojaah'?'active':''}" data-qmode="murojaah">🔁 Murojaah</button>
       </div>
-      <div class="field-label">Centang siswa yang setor hari ini (+3 poin)</div>
+      <div class="field-label">Tentukan surat & ayat, lalu centang siswa yang setor (+3 poin)</div>
       <div id="qRows">${rows}</div>
     `;
   }
@@ -911,8 +1071,25 @@ function openQuranModal(){
     document.querySelectorAll('[data-qmode]').forEach(btn=>{
       btn.onclick = ()=>{ mode = btn.dataset.qmode; draw(); };
     });
-    document.querySelectorAll('[data-qnote]').forEach(inp=>{
-      inp.oninput = ()=>{ notes[inp.dataset.qnote] = inp.value; };
+    document.querySelectorAll('[data-qsurah]').forEach(sel=>{
+      sel.onchange = ()=>{ surahSel[sel.dataset.qsurah] = sel.value; };
+    });
+    document.querySelectorAll('[data-qfrom]').forEach(inp=>{
+      inp.oninput = ()=>{ ayatFrom[inp.dataset.qfrom] = inp.value; };
+    });
+    document.querySelectorAll('[data-qto]').forEach(inp=>{
+      inp.oninput = ()=>{ ayatTo[inp.dataset.qto] = inp.value; };
+    });
+    document.querySelectorAll('[data-qopen]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const id = btn.dataset.qopen;
+        const surah = surahSel[id];
+        if(!surah){ showToast('Pilih surat dulu untuk siswa ini'); return; }
+        const from = parseInt(ayatFrom[id],10) || 1;
+        const to = parseInt(ayatTo[id],10) || 0;
+        const path = (to && to>from) ? `${surah}/${from}-${to}` : `${surah}/${from}`;
+        window.open(`https://quran.com/${path}`, '_blank');
+      };
     });
     document.querySelectorAll('[data-qchk]').forEach(btn=>{
       btn.onclick = ()=>{
