@@ -356,6 +356,14 @@
     transition:transform .15s ease;
   }
   .qr-open:active{transform:scale(.92);}
+
+  /* MUSHAF VIEWER (offline Qur'an reader) */
+  .mushaf-wrap{
+    background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;
+    padding:18px 10px;margin-bottom:10px;max-height:58vh;overflow-y:auto;overflow-x:hidden;
+    display:flex;justify-content:center;box-shadow:var(--shadow-sm);
+  }
+  .mushaf-note{font-size:10.5px;color:var(--ink-soft);text-align:center;margin:0 0 4px;}
   .form-row{
     display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--sage-line);
   }

@@ -91,23 +91,6 @@ const LOG_META = {
 const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 const MATERI_ICONS = ['📗','📘','📙','🕋','🤲','📜'];
 function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
-// Opens a quran.com path (e.g. "2/1-5") in the official "Quran for Android" app
-// (com.quran.labs.androidquran) if installed, otherwise falls back to the quran.com website.
-// Must run as a direct, synchronous result of the button tap (a genuine user gesture) and
-// navigate the CURRENT tab — Chrome only resolves intent:// this way; wrapping it in
-// window.open()/a new tab makes Chrome treat it as a plain link and it just loads the website.
-// If Android successfully hands off to the app, this page is left untouched in the background;
-// it only actually navigates away if the app isn't found (then the fallback URL loads here).
-function openQuranLink(path){
-  const webUrl = `https://quran.com/${path}`;
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  if(isAndroid){
-    const intentUrl = `intent://quran.com/${path}#Intent;scheme=https;package=com.quran.labs.androidquran;S.browser_fallback_url=${encodeURIComponent(webUrl)};end`;
-    window.location.href = intentUrl;
-  } else {
-    window.open(webUrl, '_blank');
-  }
-}
 function todayKey(){ const d=new Date(); return d.toISOString().slice(0,10); }
 function dayName(){ const map=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu']; return map[new Date().getDay()]; }
 function initials(name){ return name.trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
@@ -1049,6 +1032,24 @@ function surahOptionsHtml(selected){
   return `<option value="">Pilih Surat</option>${opts}`;
 }
 
+// Shows the requested ayat range as real mushaf-style Arabic text (no translation),
+// rendered locally via the bundled quran-madina-html reader — works fully offline once
+// a surah's data has been fetched once (cached by the service worker).
+function openMushafView(surah, from, to, onBack){
+  const found = SURAH_LIST.find(([n])=>String(n)===String(surah));
+  const surahName = found ? `${found[0]}. ${found[1]}` : `Surat ${surah}`;
+  const ayatLabel = (to && to>from) ? `${from}-${to}` : `${from}`;
+  openModal(surahName, `
+    <div class="mushaf-wrap">
+      <quran-madina-html sura="${surah}" aya="${ayatLabel}" headless="true"></quran-madina-html>
+    </div>
+    <div class="mushaf-note">Ayat ${ayatLabel} — bisa dibaca offline setelah dibuka sekali saat ada internet</div>
+  `, `<button class="save-btn" id="mushafBackBtn">‹ Kembali</button>`);
+  document.getElementById('mushafBackBtn').onclick = ()=>{
+    if(onBack) onBack(); else closeModal();
+  };
+}
+
 function openQuranModal(){
   let mode = 'darus'; // darus | murojaah
   const checked = {};
@@ -1104,8 +1105,7 @@ function openQuranModal(){
         if(!surah){ showToast('Pilih surat dulu untuk siswa ini'); return; }
         const from = parseInt(ayatFrom[id],10) || 1;
         const to = parseInt(ayatTo[id],10) || 0;
-        const path = (to && to>from) ? `${surah}/${from}-${to}` : `${surah}/${from}`;
-        openQuranLink(path);
+        openMushafView(surah, from, to, draw);
       };
     });
     document.querySelectorAll('[data-qchk]').forEach(btn=>{
@@ -1174,3 +1174,11 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
 document.getElementById('gearBtn').addEventListener('click', ()=>{ activeTab='profil'; render(); });
 
 initApp();
+
+// Register service worker so the app shell + any mushaf pages already opened once
+// keep working fully offline afterwards (no internet needed to reopen them).
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
