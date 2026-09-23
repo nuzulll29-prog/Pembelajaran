@@ -1,0 +1,16 @@
+{
+  "name": "Kelas Madin",
+  "short_name": "Kelas Madin",
+  "description": "Belajar • Beramal • Jadi Anak Sholeh — aplikasi poin & darus kelas madin",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF6EC",
+  "theme_color": "#2F4A3C",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

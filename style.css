@@ -5,6 +5,7 @@
     --ink-soft:#5B6B5F;
     --header:#2F4A3C;
     --header-2:#3E5F4C;
+    --accent:#2F4A3C;
     --sage:#7FA085;
     --sage-soft:#E4EEE1;
     --sage-line:#CFE0CA;
@@ -31,6 +32,7 @@
       --sage-line:#33463A; --gold:#E8B93E; --gold-deep:#F0C765; --gold-soft:#3A3220;
       --card-border:#2E3A30; --shadow:0 10px 24px rgba(0,0,0,0.35); --shadow-sm:0 4px 10px rgba(0,0,0,0.3);
       --blue-soft:#22303B; --pink-soft:#332028; --purple-soft:#282239; --peach-soft:#332821; --teal-soft:#1E332F;
+      --accent:#8FC7A0;
     }
   }
   :root[data-theme="dark"]{
@@ -39,6 +41,7 @@
     --sage-line:#33463A; --gold:#E8B93E; --gold-deep:#F0C765; --gold-soft:#3A3220;
     --card-border:#2E3A30; --shadow:0 10px 24px rgba(0,0,0,0.35); --shadow-sm:0 4px 10px rgba(0,0,0,0.3);
     --blue-soft:#22303B; --pink-soft:#332028; --purple-soft:#282239; --peach-soft:#332821; --teal-soft:#1E332F;
+    --accent:#8FC7A0;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -131,7 +134,7 @@
   }
   .notif-banner .ic{font-size:17px;}
   .notif-banner .txt{flex:1;font-size:13px;font-weight:600;}
-  .notif-banner .txt b{color:var(--header);}
+  .notif-banner .txt b{color:var(--accent);}
   .notif-banner .chev{color:var(--ink-soft);font-size:16px;}
 
   /* STUDENT GRID */
@@ -243,11 +246,11 @@
   .materi-info span{font-size:11.5px;color:var(--ink-soft);}
   .materi-done-btn{
     border:none;border-radius:12px;padding:8px 12px;font-size:11.5px;font-weight:800;white-space:nowrap;
-    background:var(--sage-soft);color:var(--header);
+    background:var(--sage-soft);color:var(--accent);
   }
   .materi-done-btn.done{background:var(--gold-soft);color:var(--gold-deep);}
   .add-materi-btn{
-    width:100%;border:1.5px dashed var(--sage);background:transparent;color:var(--header);
+    width:100%;border:1.5px dashed var(--sage);background:transparent;color:var(--accent);
     border-radius:16px;padding:12px;font-weight:800;font-size:13px;margin-top:4px;
   }
 
@@ -265,7 +268,7 @@
   /* PROFIL */
   .profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px;}
   .stat-card{background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;padding:14px;box-shadow:var(--shadow-sm);}
-  .stat-card .n{font-family:'Baloo 2';font-size:22px;font-weight:800;color:var(--header);}
+  .stat-card .n{font-family:'Baloo 2';font-size:22px;font-weight:800;color:var(--accent);}
   .stat-card .l{font-size:11px;color:var(--ink-soft);font-weight:700;}
   .siswa-row{
     display:flex;align-items:center;gap:11px;background:var(--bg-elevated);border:1px solid var(--card-border);
@@ -275,12 +278,13 @@
   .siswa-row .meta{flex:1;}
   .siswa-row .meta b{font-size:13px;display:block;}
   .siswa-row .meta span{font-size:11px;color:var(--ink-soft);}
-  .icon-btn{width:32px;height:32px;border-radius:10px;border:none;background:var(--sage-soft);color:var(--header);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .icon-btn{width:32px;height:32px;border-radius:10px;border:none;background:var(--sage-soft);color:var(--accent);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .icon-btn.danger{background:#F8E3DD;color:var(--danger);}
   .add-siswa-btn{
-    width:100%;border:1.5px dashed var(--sage);background:transparent;color:var(--header);
+    width:100%;border:1.5px dashed var(--sage);background:transparent;color:var(--accent);
     border-radius:16px;padding:13px;font-weight:800;font-size:13.5px;margin:6px 0 10px;
   }
+  .settings-back-row{font-size:14px;font-weight:800;color:var(--accent);margin-bottom:4px;padding:6px 2px;cursor:pointer;display:inline-block;}
   .settings-list{margin-top:8px;}
   .settings-row{
     background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;padding:13px 14px;
@@ -289,6 +293,20 @@
   .settings-row .ic{font-size:17px;}
   .settings-row b{font-size:13px;flex:1;}
   .settings-row.danger b{color:var(--danger);}
+  .settings-row .sub{display:block;font-size:10.5px;color:var(--ink-soft);font-weight:600;margin-top:1px;}
+  .settings-row .meta-col{flex:1;min-width:0;}
+
+  /* DOWNLOAD ALL JUZ */
+  .dl-juz-body p{font-size:13px;line-height:1.55;color:var(--ink-soft);margin:0 0 14px;}
+  .dl-juz-progress{margin:6px 0 4px;}
+  .dl-juz-track{width:100%;height:12px;border-radius:8px;background:var(--sage-soft);overflow:hidden;}
+  .dl-juz-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--gold),var(--gold-deep));transition:width .2s ease;}
+  .dl-juz-label{display:flex;justify-content:space-between;font-size:11.5px;font-weight:800;color:var(--accent);margin-top:8px;}
+  .dl-juz-done{display:flex;align-items:center;gap:10px;background:var(--sage-soft);border-radius:14px;padding:12px 14px;font-size:13px;font-weight:700;color:var(--accent);}
+  .outline-btn{
+    width:100%;border:1.5px solid var(--sage);border-radius:16px;padding:13px;background:transparent;
+    color:var(--accent);font-weight:800;font-size:14px;margin-top:8px;
+  }
 
   /* BOTTOM NAV */
   .bottom-nav{
@@ -300,7 +318,7 @@
   .nav-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ink-soft);padding:6px 14px;border-radius:14px;}
   .nav-btn .ic{font-size:19px;}
   .nav-btn span.t{font-size:10.5px;font-weight:800;}
-  .nav-btn.active{color:var(--header);background:var(--sage-soft);}
+  .nav-btn.active{color:var(--accent);background:var(--sage-soft);}
 
   /* MODAL */
   .modal-overlay{
@@ -318,7 +336,7 @@
     border-bottom:1px solid var(--card-border);background:var(--bg-elevated);
   }
   .modal-head h3{margin:0;font-size:16px;font-weight:800;}
-  .modal-head .close-x{width:32px;height:32px;border-radius:10px;border:none;background:var(--sage-soft);color:var(--header);font-size:15px;}
+  .modal-head .close-x{width:32px;height:32px;border-radius:10px;border:none;background:var(--sage-soft);color:var(--accent);font-size:15px;}
   .modal-body{padding:14px 18px;overflow-y:auto;flex:1;}
   .modal-foot{padding:12px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--card-border);background:var(--bg-elevated);}
   .save-btn{
@@ -331,7 +349,7 @@
     padding:10px 12px;font-size:13.5px;color:var(--ink);margin-bottom:14px;
   }
   .tab-toggle{display:flex;background:var(--sage-soft);border-radius:13px;padding:3px;margin-bottom:14px;}
-  .tab-toggle button{flex:1;border:none;background:none;padding:8px;border-radius:10px;font-weight:800;font-size:12.5px;color:var(--header);}
+  .tab-toggle button{flex:1;border:none;background:none;padding:8px;border-radius:10px;font-weight:800;font-size:12.5px;color:var(--accent);}
   .tab-toggle button.active{background:var(--bg-elevated);box-shadow:var(--shadow-sm);}
 
   /* DARUS & MUROJAAH: per-siswa surat/ayat + buka Qur'an */
@@ -356,6 +374,38 @@
     transition:transform .15s ease;
   }
   .qr-open:active{transform:scale(.92);}
+  .qr-darus-start{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap;}
+  .qr-start-label{font-size:11.5px;color:var(--ink-soft);flex:1;min-width:0;}
+  .qr-start-label b{color:var(--accent);font-weight:800;}
+  .qr-mini-btn{
+    flex-shrink:0;border:1px solid var(--sage);background:var(--sage-soft);color:var(--accent);
+    border-radius:8px;padding:5px 9px;font-size:10.5px;font-weight:800;
+  }
+  .qr-select-sm{flex:1.4;min-width:0;}
+  .qr-ayat-sm{width:56px;}
+  .qr-end-label{font-size:10.5px;color:var(--ink-soft);font-weight:700;margin:0 0 4px;}
+
+  /* REKAP POIN */
+  .rekap-weak-box{
+    background:#FBEFE9;border:1px solid #F0C9B8;border-radius:14px;padding:11px 13px;margin-bottom:12px;
+  }
+  .rekap-weak-box b{font-size:12.5px;color:var(--danger);}
+  .rekap-weak-box ul{margin:7px 0 0;padding-left:18px;}
+  .rekap-weak-box li{font-size:12px;color:var(--ink);margin-bottom:3px;}
+  .rekap-ok-box{
+    background:var(--sage-soft);border-radius:14px;padding:11px 13px;margin-bottom:12px;
+    font-size:12.5px;font-weight:700;color:var(--accent);
+  }
+  .rekap-row{
+    display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--card-border);
+  }
+  .rekap-row.rekap-head{border-bottom:1.5px solid var(--sage);padding-bottom:7px;}
+  .rekap-row.rekap-head > div{font-size:10px;font-weight:800;color:var(--ink-soft);text-transform:uppercase;}
+  .rekap-rank{width:20px;flex-shrink:0;font-size:11.5px;font-weight:800;color:var(--ink-soft);}
+  .rekap-name{flex:1;min-width:0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rekap-mini{width:32px;flex-shrink:0;font-size:10.5px;color:var(--ink-soft);text-align:center;}
+  .rekap-total{width:48px;flex-shrink:0;font-size:13px;font-weight:800;color:var(--accent);text-align:right;}
+  .rekap-total.neg{color:var(--danger);}
 
   /* MUSHAF VIEWER (offline Qur'an reader) */
   .mushaf-wrap{
@@ -382,17 +432,17 @@
     border:1.5px solid var(--card-border);background:var(--bg-elevated);border-radius:10px;padding:6px 9px;
     font-size:10.5px;font-weight:800;color:var(--ink-soft);
   }
-  .seg button.on{border-color:var(--header);background:var(--sage-soft);color:var(--header);}
+  .seg button.on{border-color:var(--accent);background:var(--sage-soft);color:var(--accent);}
   .avatar-picker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
   .avatar-pick-item{width:100%;aspect-ratio:1/1;border-radius:50%;overflow:hidden;border:3px solid transparent;padding:0;background:var(--sage-soft);}
   .avatar-pick-item img{width:100%;height:100%;object-fit:cover;display:block;}
   .avatar-pick-item.selected{border-color:var(--gold-deep);box-shadow:0 0 0 2px var(--gold-soft);}
-  .avatar-pick-item.none-item{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--header);text-align:center;line-height:1.2;padding:4px;}
+  .avatar-pick-item.none-item{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--accent);text-align:center;line-height:1.2;padding:4px;}
   .num-input{width:56px;border:1.5px solid var(--card-border);border-radius:10px;padding:7px 6px;text-align:center;font-weight:800;font-size:13px;background:var(--bg-elevated);color:var(--ink);}
   .chk-box{width:24px;height:24px;border-radius:8px;border:1.5px solid var(--card-border);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:var(--bg-elevated);color:transparent;font-weight:800;}
   .chk-box.on{background:var(--sage);border-color:var(--sage);color:#fff;}
   .qty-ctrl{display:flex;align-items:center;gap:8px;}
-  .qty-btn{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--card-border);background:var(--bg-elevated);font-weight:800;color:var(--header);}
+  .qty-btn{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--card-border);background:var(--bg-elevated);font-weight:800;color:var(--accent);}
   .qty-val{min-width:26px;text-align:center;font-weight:800;font-size:13px;}
   .mini-note{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
   .day-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:6px;}
