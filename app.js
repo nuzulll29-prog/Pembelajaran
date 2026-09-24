@@ -1386,34 +1386,60 @@ function openPiketModal(){
 }
 
 /* --- DARUS & MUROJAAH --- */
+// [nomor, nama latin, nama arab]
 const SURAH_LIST = [
-  [1,"Al-Fatihah"],[2,"Al-Baqarah"],[3,"Ali 'Imran"],[4,"An-Nisa'"],[5,"Al-Ma'idah"],
-  [6,"Al-An'am"],[7,"Al-A'raf"],[8,"Al-Anfal"],[9,"At-Taubah"],[10,"Yunus"],
-  [11,"Hud"],[12,"Yusuf"],[13,"Ar-Ra'd"],[14,"Ibrahim"],[15,"Al-Hijr"],
-  [16,"An-Nahl"],[17,"Al-Isra'"],[18,"Al-Kahf"],[19,"Maryam"],[20,"Ta-Ha"],
-  [21,"Al-Anbiya'"],[22,"Al-Hajj"],[23,"Al-Mu'minun"],[24,"An-Nur"],[25,"Al-Furqan"],
-  [26,"Asy-Syu'ara'"],[27,"An-Naml"],[28,"Al-Qasas"],[29,"Al-'Ankabut"],[30,"Ar-Rum"],
-  [31,"Luqman"],[32,"As-Sajdah"],[33,"Al-Ahzab"],[34,"Saba'"],[35,"Fatir"],
-  [36,"Yasin"],[37,"As-Saffat"],[38,"Sad"],[39,"Az-Zumar"],[40,"Ghafir"],
-  [41,"Fussilat"],[42,"Asy-Syura"],[43,"Az-Zukhruf"],[44,"Ad-Dukhan"],[45,"Al-Jasiyah"],
-  [46,"Al-Ahqaf"],[47,"Muhammad"],[48,"Al-Fath"],[49,"Al-Hujurat"],[50,"Qaf"],
-  [51,"Az-Zariyat"],[52,"At-Tur"],[53,"An-Najm"],[54,"Al-Qamar"],[55,"Ar-Rahman"],
-  [56,"Al-Waqi'ah"],[57,"Al-Hadid"],[58,"Al-Mujadilah"],[59,"Al-Hasyr"],[60,"Al-Mumtahanah"],
-  [61,"As-Saff"],[62,"Al-Jumu'ah"],[63,"Al-Munafiqun"],[64,"At-Tagabun"],[65,"At-Talaq"],
-  [66,"At-Tahrim"],[67,"Al-Mulk"],[68,"Al-Qalam"],[69,"Al-Haqqah"],[70,"Al-Ma'arij"],
-  [71,"Nuh"],[72,"Al-Jinn"],[73,"Al-Muzzammil"],[74,"Al-Muddassir"],[75,"Al-Qiyamah"],
-  [76,"Al-Insan"],[77,"Al-Mursalat"],[78,"An-Naba'"],[79,"An-Nazi'at"],[80,"'Abasa"],
-  [81,"At-Takwir"],[82,"Al-Infitar"],[83,"Al-Mutaffifin"],[84,"Al-Insyiqaq"],[85,"Al-Buruj"],
-  [86,"At-Tariq"],[87,"Al-A'la"],[88,"Al-Gasyiyah"],[89,"Al-Fajr"],[90,"Al-Balad"],
-  [91,"Asy-Syams"],[92,"Al-Lail"],[93,"Ad-Duha"],[94,"Al-Insyirah"],[95,"At-Tin"],
-  [96,"Al-'Alaq"],[97,"Al-Qadr"],[98,"Al-Bayyinah"],[99,"Az-Zalzalah"],[100,"Al-'Adiyat"],
-  [101,"Al-Qari'ah"],[102,"At-Takasur"],[103,"Al-'Asr"],[104,"Al-Humazah"],[105,"Al-Fil"],
-  [106,"Quraisy"],[107,"Al-Ma'un"],[108,"Al-Kausar"],[109,"Al-Kafirun"],[110,"An-Nasr"],
-  [111,"Al-Lahab"],[112,"Al-Ikhlas"],[113,"Al-Falaq"],[114,"An-Nas"],
+  [1,"Al-Fatihah","الفاتحة"],[2,"Al-Baqarah","البقرة"],[3,"Ali 'Imran","آل عمران"],[4,"An-Nisa'","النساء"],[5,"Al-Ma'idah","المائدة"],
+  [6,"Al-An'am","الأنعام"],[7,"Al-A'raf","الأعراف"],[8,"Al-Anfal","الأنفال"],[9,"At-Taubah","التوبة"],[10,"Yunus","يونس"],
+  [11,"Hud","هود"],[12,"Yusuf","يوسف"],[13,"Ar-Ra'd","الرعد"],[14,"Ibrahim","إبراهيم"],[15,"Al-Hijr","الحجر"],
+  [16,"An-Nahl","النحل"],[17,"Al-Isra'","الإسراء"],[18,"Al-Kahf","الكهف"],[19,"Maryam","مريم"],[20,"Ta-Ha","طه"],
+  [21,"Al-Anbiya'","الأنبياء"],[22,"Al-Hajj","الحج"],[23,"Al-Mu'minun","المؤمنون"],[24,"An-Nur","النور"],[25,"Al-Furqan","الفرقان"],
+  [26,"Asy-Syu'ara'","الشعراء"],[27,"An-Naml","النمل"],[28,"Al-Qasas","القصص"],[29,"Al-'Ankabut","العنكبوت"],[30,"Ar-Rum","الروم"],
+  [31,"Luqman","لقمان"],[32,"As-Sajdah","السجدة"],[33,"Al-Ahzab","الأحزاب"],[34,"Saba'","سبأ"],[35,"Fatir","فاطر"],
+  [36,"Yasin","يس"],[37,"As-Saffat","الصافات"],[38,"Sad","ص"],[39,"Az-Zumar","الزمر"],[40,"Ghafir","غافر"],
+  [41,"Fussilat","فصلت"],[42,"Asy-Syura","الشورى"],[43,"Az-Zukhruf","الزخرف"],[44,"Ad-Dukhan","الدخان"],[45,"Al-Jasiyah","الجاثية"],
+  [46,"Al-Ahqaf","الأحقاف"],[47,"Muhammad","محمد"],[48,"Al-Fath","الفتح"],[49,"Al-Hujurat","الحجرات"],[50,"Qaf","ق"],
+  [51,"Az-Zariyat","الذاريات"],[52,"At-Tur","الطور"],[53,"An-Najm","النجم"],[54,"Al-Qamar","القمر"],[55,"Ar-Rahman","الرحمن"],
+  [56,"Al-Waqi'ah","الواقعة"],[57,"Al-Hadid","الحديد"],[58,"Al-Mujadilah","المجادلة"],[59,"Al-Hasyr","الحشر"],[60,"Al-Mumtahanah","الممتحنة"],
+  [61,"As-Saff","الصف"],[62,"Al-Jumu'ah","الجمعة"],[63,"Al-Munafiqun","المنافقون"],[64,"At-Tagabun","التغابن"],[65,"At-Talaq","الطلاق"],
+  [66,"At-Tahrim","التحريم"],[67,"Al-Mulk","الملك"],[68,"Al-Qalam","القلم"],[69,"Al-Haqqah","الحاقة"],[70,"Al-Ma'arij","المعارج"],
+  [71,"Nuh","نوح"],[72,"Al-Jinn","الجن"],[73,"Al-Muzzammil","المزمل"],[74,"Al-Muddassir","المدثر"],[75,"Al-Qiyamah","القيامة"],
+  [76,"Al-Insan","الإنسان"],[77,"Al-Mursalat","المرسلات"],[78,"An-Naba'","النبأ"],[79,"An-Nazi'at","النازعات"],[80,"'Abasa","عبس"],
+  [81,"At-Takwir","التكوير"],[82,"Al-Infitar","الانفطار"],[83,"Al-Mutaffifin","المطففين"],[84,"Al-Insyiqaq","الانشقاق"],[85,"Al-Buruj","البروج"],
+  [86,"At-Tariq","الطارق"],[87,"Al-A'la","الأعلى"],[88,"Al-Gasyiyah","الغاشية"],[89,"Al-Fajr","الفجر"],[90,"Al-Balad","البلد"],
+  [91,"Asy-Syams","الشمس"],[92,"Al-Lail","الليل"],[93,"Ad-Duha","الضحى"],[94,"Al-Insyirah","الشرح"],[95,"At-Tin","التين"],
+  [96,"Al-'Alaq","العلق"],[97,"Al-Qadr","القدر"],[98,"Al-Bayyinah","البينة"],[99,"Az-Zalzalah","الزلزلة"],[100,"Al-'Adiyat","العاديات"],
+  [101,"Al-Qari'ah","القارعة"],[102,"At-Takasur","التكاثر"],[103,"Al-'Asr","العصر"],[104,"Al-Humazah","الهمزة"],[105,"Al-Fil","الفيل"],
+  [106,"Quraisy","قريش"],[107,"Al-Ma'un","الماعون"],[108,"Al-Kausar","الكوثر"],[109,"Al-Kafirun","الكافرون"],[110,"An-Nasr","النصر"],
+  [111,"Al-Lahab","المسد"],[112,"Al-Ikhlas","الإخلاص"],[113,"Al-Falaq","الفلق"],[114,"An-Nas","الناس"],
 ];
+
+// Awal tiap juz: [nomor surat, nomor ayat] — juz ke-N dimulai di JUZ_START[N-1] (cocok dengan data mushaf Madinah).
+const JUZ_START = [[1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,82],[6,111],[7,88],[8,41],[9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],[29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1]];
+// Juz tempat sebuah ayat berada.
+function juzOf(surah, ayat){
+  const s = parseInt(surah,10), a = parseInt(ayat,10) || 1;
+  let j = 1;
+  for(let i=0;i<JUZ_START.length;i++){
+    const [js,ja] = JUZ_START[i];
+    if(s>js || (s===js && a>=ja)) j = i+1; else break;
+  }
+  return j;
+}
+// Nomor juz jika ayat ini TEPAT awal sebuah juz (selain itu 0).
+function juzStartingAt(surah, ayat){
+  const s = parseInt(surah,10), a = parseInt(ayat,10);
+  const i = JUZ_START.findIndex(([js,ja])=>js===s && ja===a);
+  return i<0 ? 0 : i+1;
+}
+// Pilihan surat: nama latin + tulisan arab, dikelompokkan per juz (surat dimasukkan ke juz tempat ia dimulai).
 function surahOptionsHtml(selected){
-  const opts = SURAH_LIST.map(([n,name])=>`<option value="${n}" ${String(selected)===String(n)?'selected':''}>${n}. ${name}</option>`).join('');
-  return `<option value="">Pilih Surat</option>${opts}`;
+  let html = '<option value="">Pilih Surat</option>', cur = 0;
+  SURAH_LIST.forEach(([n,name,arab])=>{
+    const j = juzOf(n,1);
+    if(j!==cur){ if(cur) html += '</optgroup>'; html += `<optgroup label="Juz ${j}">`; cur = j; }
+    html += `<option value="${n}" ${String(selected)===String(n)?'selected':''}>${n}. ${name} — ${arab}</option>`;
+  });
+  return html + '</optgroup>';
 }
 function surahLabel(n){
   const found = SURAH_LIST.find(([num])=>String(num)===String(n));
@@ -1438,14 +1464,19 @@ function mushafChunks(from, to){
 
 function openMushafView(surah, from, to, onBack){
   const found = SURAH_LIST.find(([n])=>String(n)===String(surah));
-  const surahName = found ? `${found[0]}. ${found[1]}` : `Surat ${surah}`;
+  const surahName = found ? `${found[0]}. ${found[1]} <span class="mushaf-title-ar">${found[2]}</span>` : `Surat ${surah}`;
   const endAyat = (to && to>from) ? to : from;
   const ayatLabel = (endAyat>from) ? `${from}-${endAyat}` : `${from}`;
   let zoom = (state.settings && state.settings.mushafZoom) || 1;
 
   const chunksHtml = mushafChunks(from, endAyat).map(([a,b])=>{
     const range = b>a ? `${a}-${b}` : `${a}`;
-    return `<div class="mushaf-block"><quran-madina-html sura="${surah}" aya="${range}" headless="true"></quran-madina-html></div>`;
+    // Penanda juz: di ayat pertama selalu tampil (juz-nya), dan di tengah rentang saat juz baru dimulai.
+    const juzStart = juzStartingAt(surah, a);
+    const marker = (a===from)
+      ? `<div class="mushaf-juz${juzStart?' start':''}"><span>${juzStart ? '🔖 Awal Juz '+juzStart : 'Juz '+juzOf(surah,a)}</span></div>`
+      : (juzStart ? `<div class="mushaf-juz start"><span>🔖 Awal Juz ${juzStart}</span></div>` : '');
+    return `${marker}<div class="mushaf-block"><quran-madina-html sura="${surah}" aya="${range}" headless="true"></quran-madina-html></div>`;
   }).join('');
 
   openModal(surahName, `
