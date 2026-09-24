@@ -1,4 +1,4 @@
-  :root{
+:root{
     --bg:#FAF6EC;
     --bg-elevated:#FFFFFF;
     --ink:#233428;
@@ -468,6 +468,11 @@
     direction:rtl;display:block;box-shadow:var(--shadow-sm);
   }
   .mushaf-block{margin-bottom:2px;}
+  /* Library menyembunyikan potongan ayat tetangga di baris mushaf yang sama dengan visibility:hidden,
+     tetapi potongan itu tetap memakan tempat, sehingga awal ayat terdorong ke tengah/kiri seperti
+     paragraf. display:none membuat awal ayat mulai dari pinggir kanan. */
+  #mushafContent quran-madina-html-line > div[style*="visibility"],
+  #mushafContent .quran-madina-html-word-hidden{display:none !important;}
   .mushaf-note{font-size:10.5px;color:var(--ink-soft);text-align:center;margin:0 0 4px;}
   .form-row{
     display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--sage-line);
