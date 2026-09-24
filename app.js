@@ -79,6 +79,7 @@ const ACTIONS = {
   raport:{ label:'Nilai Raport', icon:'📊', bg:'var(--pink-soft)' },
   piket:{ label:'Jadwal Piket', icon:'🧹', bg:'var(--peach-soft)' },
   quran:{ label:"Darus & Murojaah", icon:'📖', bg:'var(--teal-soft)' },
+  jurnal:{ label:'Jurnal Kelas', icon:'📔', bg:'var(--sage-soft)' },
   poin:{ label:'Poin Manual', icon:'⭐', bg:'var(--gold-soft)' },
 };
 // Icon/label lookup for activity-log entries (includes retired action keys like 'ujian'
@@ -155,6 +156,19 @@ function migrateGenders(){
     state.settings = { appName:'Kelas Madin', tagline:'Belajar • Beramal • Jadi Anak Sholeh', greeting:'semangat belajar hari ini! ✨' };
     changed = true;
   }
+  if(!Array.isArray(state.jurnal)){ state.jurnal = []; changed = true; }
+  if(!Array.isArray(state.aturanPoin)){
+    state.aturanPoin = [
+      {id: uid(), label:'Hafalan Lancar', poin:5},
+      {id: uid(), label:'Aktif Bertanya', poin:3},
+      {id: uid(), label:'Membantu Teman', poin:3},
+      {id: uid(), label:'Tidak Mengerjakan Tugas', poin:-3},
+      {id: uid(), label:'Ribut di Kelas', poin:-2},
+      {id: uid(), label:'Terlambat', poin:-2},
+    ];
+    changed = true;
+  }
+  if(!state.absensi || typeof state.absensi!=='object'){ state.absensi = {}; changed = true; }
   (state.students||[]).forEach((s,i)=>{
     if(s.gender!=='L' && s.gender!=='P'){ s.gender = guessGender(s.name); changed = true; }
     // old demo/legacy avatars used generic stock photos that don't crop well — switch everyone
@@ -206,6 +220,16 @@ function defaultState(){
       tagline: 'Belajar • Beramal • Jadi Anak Sholeh',
       greeting: 'semangat belajar hari ini! ✨',
     },
+    jurnal: [],
+    aturanPoin: [
+      {id: uid(), label:'Hafalan Lancar', poin:5},
+      {id: uid(), label:'Aktif Bertanya', poin:3},
+      {id: uid(), label:'Membantu Teman', poin:3},
+      {id: uid(), label:'Tidak Mengerjakan Tugas', poin:-3},
+      {id: uid(), label:'Ribut di Kelas', poin:-2},
+      {id: uid(), label:'Terlambat', poin:-2},
+    ],
+    absensi: {},
   };
 }
 
@@ -403,6 +427,8 @@ function bindScreenEvents(){
   });
   const notif = document.getElementById('notifBanner');
   if(notif) notif.onclick = openTodayLog;
+  const jurnalNoteBanner = document.getElementById('jurnalNoteBanner');
+  if(jurnalNoteBanner) jurnalNoteBanner.onclick = openJurnalModal;
   const addSiswaBtn = document.getElementById('addSiswaBtn');
   if(addSiswaBtn) addSiswaBtn.onclick = openAddStudent;
   const addMateriBtn = document.getElementById('addMateriBtn');
@@ -422,6 +448,8 @@ function bindScreenEvents(){
   if(openRekapBtn) openRekapBtn.onclick = openRekapModal;
   const openRekapBtn2 = document.getElementById('openRekapBtn2');
   if(openRekapBtn2) openRekapBtn2.onclick = openRekapModal;
+  const openQuranRekapBtn = document.getElementById('openQuranRekapBtn');
+  if(openQuranRekapBtn) openQuranRekapBtn.onclick = openQuranRekapModal;
   const pengBackBtn = document.getElementById('pengBackBtn');
   if(pengBackBtn) pengBackBtn.onclick = ()=>{ activeTab='beranda'; render(); };
   const editTampilanBtn = document.getElementById('editTampilanBtn');
@@ -430,6 +458,8 @@ function bindScreenEvents(){
   if(editJadwalBtn) editJadwalBtn.onclick = openJadwalModal;
   const editMapelBtn = document.getElementById('editMapelBtn');
   if(editMapelBtn) editMapelBtn.onclick = openMapelModal;
+  const editAturanPoinBtn = document.getElementById('editAturanPoinBtn');
+  if(editAturanPoinBtn) editAturanPoinBtn.onclick = openAturanPoinModal;
   const goMateriBtn = document.getElementById('goMateriBtn');
   if(goMateriBtn) goMateriBtn.onclick = ()=>{ activeTab='materi'; render(); };
   const resetBtn = document.getElementById('resetDataBtn');
@@ -446,6 +476,8 @@ function renderBeranda(){
   const students = state.students||[];
   const todayLogs = state.logs.filter(l=>l.date===todayKey() && l.delta>0);
   const todayStudentIds = [...new Set(todayLogs.map(l=>l.studentId))];
+  const lastJurnal = [...(state.jurnal||[])].sort((a,b)=> b.date.localeCompare(a.date))[0];
+  const showJurnalReminder = lastJurnal && lastJurnal.catatan && lastJurnal.date !== todayKey();
 
   const quick = Object.entries(ACTIONS).map(([key,a])=>`
     <button class="quick-btn" data-action="${key}">
@@ -479,6 +511,12 @@ function renderBeranda(){
         <div class="txt">Hari ini ada <b>${todayStudentIds.length} siswa</b> yang mendapat poin!</div>
         <span class="chev">›</span>
       </div>
+      ${showJurnalReminder ? `
+      <div class="notif-banner" id="jurnalNoteBanner">
+        <span class="ic">📌</span>
+        <div class="txt">Catatan pertemuan lalu: <b>${lastJurnal.catatan.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</b></div>
+        <span class="chev">›</span>
+      </div>` : ''}
     </div>
 
     <div class="section-title">Aksi Cepat</div>
@@ -630,11 +668,24 @@ function renderPengaturan(){
         <span class="chev">›</span>
       </div>
     </div>
+    <div class="section-title">Poin</div>
+    <div class="settings-list">
+      <div class="settings-row" id="editAturanPoinBtn">
+        <span class="ic">⭐</span>
+        <div class="meta-col"><b>Aturan Penambahan & Pengurangan Poin</b><span class="sub">${(state.aturanPoin||[]).length} aturan tersimpan</span></div>
+        <span class="chev">›</span>
+      </div>
+    </div>
     <div class="section-title">Lainnya</div>
     <div class="settings-list">
       <div class="settings-row" id="openRekapBtn2">
         <span class="ic">📈</span>
         <div class="meta-col"><b>Rekap Perkembangan Siswa</b><span class="sub">Poin per minggu, bulan & semester</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="settings-row" id="openQuranRekapBtn">
+        <span class="ic">📖</span>
+        <div class="meta-col"><b>Rekap Darus & Murojaah</b><span class="sub">Riwayat setoran per siswa</span></div>
         <span class="chev">›</span>
       </div>
       <div class="settings-row" id="dlAllJuzBtn">
@@ -694,6 +745,42 @@ function openMapelModal(){
       if(!val) return;
       state.mataPelajaran = state.mataPelajaran || [];
       if(!state.mataPelajaran.includes(val)) state.mataPelajaran.push(val);
+      saveAndRender();
+      draw();
+    };
+  }
+  draw();
+}
+
+function openAturanPoinModal(){
+  function rows(){
+    return (state.aturanPoin||[]).map((r,i)=>`
+      <div class="siswa-row">
+        <div class="meta"><b>${r.label}</b><span>${r.poin>0?'+':''}${r.poin} poin</span></div>
+        <button class="icon-btn danger" data-del-aturan="${i}">🗑</button>
+      </div>`).join('') || '<div class="empty-note">Belum ada aturan poin.</div>';
+  }
+  function draw(){
+    openModal('Aturan Poin', `
+      <div id="aturanRows">${rows()}</div>
+      <div class="field-label">Nama Aturan</div>
+      <input class="text-input" id="aturanLabel" placeholder="Contoh: Hafalan Lancar" />
+      <div class="field-label">Nilai Poin (isi minus untuk pengurangan, mis. -3)</div>
+      <input class="text-input" id="aturanNilai" type="number" placeholder="Contoh: 5 atau -3" />
+    `, `<button class="save-btn" id="aturanAddBtn">+ Tambah Aturan</button>`);
+    document.querySelectorAll('[data-del-aturan]').forEach(btn=>{
+      btn.onclick = ()=>{
+        state.aturanPoin.splice(parseInt(btn.dataset.delAturan,10),1);
+        saveAndRender();
+        draw();
+      };
+    });
+    document.getElementById('aturanAddBtn').onclick = ()=>{
+      const label = document.getElementById('aturanLabel').value.trim();
+      const nilai = parseInt(document.getElementById('aturanNilai').value,10);
+      if(!label || isNaN(nilai) || nilai===0) return;
+      state.aturanPoin = state.aturanPoin || [];
+      state.aturanPoin.push({id:uid(), label, poin:nilai});
       saveAndRender();
       draw();
     };
@@ -926,20 +1013,24 @@ function openActionModal(key){
   if(key==='raport') return openRaportModal();
   if(key==='piket') return openPiketModal();
   if(key==='quran') return openQuranModal();
+  if(key==='jurnal') return openJurnalModal();
   if(key==='poin') return openPoinModal();
 }
 
 /* --- ABSENSI --- */
 function openAbsensiModal(){
+  const today = todayKey();
+  const savedToday = state.absensi[today] || {};
+  const isEdit = Object.keys(savedToday).length > 0;
   const statuses = {};
-  (state.students||[]).forEach(s=> statuses[s.id]='Hadir');
+  (state.students||[]).forEach(s=> statuses[s.id] = savedToday[s.id] || 'Hadir');
   const STATUS_ORDER = ['Hadir','Sakit','Izin','Alpa'];
   const STATUS_PTS = {Hadir:5, Sakit:0, Izin:0, Alpa:-2};
   const STATUS_META = {
     Hadir:{icon:'✅', label:'Hadir', chip:'var(--sage-soft)'},
     Sakit:{icon:'🤒', label:'Sakit', chip:'var(--peach-soft)'},
     Izin:{icon:'📩', label:'Izin', chip:'var(--blue-soft)'},
-    Alpa:{icon:'❌', label:'Alpa', chip:'#F8E3DD'},
+    Alpa:{icon:'❌', label:'Alpa', chip:'var(--red-soft)'},
   };
 
   function cardsHtml(){
@@ -958,10 +1049,11 @@ function openAbsensiModal(){
     }).join('');
   }
 
-  openModal('Absensi Hari Ini', `
+  openModal(isEdit ? 'Edit Absensi Hari Ini' : 'Absensi Hari Ini', `
+    ${isEdit ? `<div class="jurnal-reminder"><span class="ic">📝</span><div><b>Mengedit absensi yang sudah tersimpan hari ini.</b><p>Perubahan otomatis menyesuaikan poin yang sudah diberikan.</p></div></div>` : ''}
     <div class="absen-hint">👆 Ketuk avatar untuk ganti status: Hadir → Sakit → Izin → Alpa</div>
     <div class="absen-grid" id="absGrid">${cardsHtml()}</div>
-  `, `<button class="save-btn" id="absSave">Simpan Absensi</button>`);
+  `, `<button class="save-btn" id="absSave">${isEdit ? 'Update Absensi' : 'Simpan Absensi'}</button>`);
 
   function bindTaps(){
     document.querySelectorAll('[data-absen-id]').forEach(card=>{
@@ -992,12 +1084,98 @@ function openAbsensiModal(){
   bindTaps();
 
   document.getElementById('absSave').onclick = ()=>{
-    const deltas = Object.entries(statuses).map(([studentId,st])=>({studentId, delta:STATUS_PTS[st]}));
+    const deltas = Object.entries(statuses).map(([studentId,st])=>{
+      const oldSt = savedToday[studentId];
+      const oldPts = oldSt ? STATUS_PTS[oldSt] : 0;
+      return {studentId, delta: STATUS_PTS[st] - oldPts};
+    });
     const hadirCount = Object.values(statuses).filter(v=>v==='Hadir').length;
-    const {touched,totalPositive} = applyDeltas(deltas, 'Absensi', 'absensi');
+    state.absensi[today] = {...statuses};
+    const {touched,totalPositive} = applyDeltas(deltas, isEdit ? 'Absensi (diperbarui)' : 'Absensi', 'absensi');
     closeModal();
     showCelebration(totalPositive, `Absensi tersimpan! ${hadirCount} siswa hadir hari ini.`, touched);
   };
+}
+
+/* --- JURNAL PEMBELAJARAN & CATATAN --- */
+function latestJurnalBefore(dateKey){
+  const list = (state.jurnal||[]).filter(j=>j.date < dateKey);
+  if(list.length===0) return null;
+  return list.sort((a,b)=> b.date.localeCompare(a.date))[0];
+}
+
+function openJurnalModal(){
+  const today = todayKey();
+  let existing = (state.jurnal||[]).find(j=>j.date===today);
+  const prev = latestJurnalBefore(today);
+
+  function draw(){
+    const reminderHtml = (prev && prev.catatan) ? `
+      <div class="jurnal-reminder">
+        <span class="ic">📌</span>
+        <div><b>Catatan pertemuan lalu (${fmtDateShort(prev.date)}):</b><p>${prev.catatan.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</p></div>
+      </div>` : '';
+    openModal('Jurnal Pembelajaran', `
+      ${reminderHtml}
+      <div class="field-label">Tanggal</div>
+      <input class="text-input" value="${fmtDateShort(today)}" disabled />
+      <div class="field-label">Materi yang Diajarkan Hari Ini</div>
+      <textarea class="text-input" id="jMateri" rows="3" placeholder="Contoh: Tajwid - hukum nun sukun & tanwin">${(existing?.materi||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+      <div class="field-label">Catatan untuk Pertemuan Berikutnya</div>
+      <textarea class="text-input" id="jCatatan" rows="3" placeholder="Contoh: Lanjutkan latihan makhraj huruf, PR belum semua selesai">${(existing?.catatan||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
+    `, `
+      <div style="display:flex;gap:8px;">
+        <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="jHistoryBtn">📖 Riwayat</button>
+        <button class="save-btn" style="flex:1;" id="jSave">Simpan Jurnal</button>
+      </div>
+    `);
+    document.getElementById('jHistoryBtn').onclick = openJurnalHistoryModal;
+    document.getElementById('jSave').onclick = ()=>{
+      const materi = document.getElementById('jMateri').value.trim();
+      const catatan = document.getElementById('jCatatan').value.trim();
+      if(!materi && !catatan){ closeModal(); return; }
+      state.jurnal = state.jurnal || [];
+      if(existing){
+        existing.materi = materi;
+        existing.catatan = catatan;
+      } else {
+        existing = {id:uid(), date:today, materi, catatan, createdAt:Date.now()};
+        state.jurnal.push(existing);
+      }
+      saveAndRender();
+      closeModal();
+      showToast('Jurnal pembelajaran tersimpan');
+    };
+  }
+  draw();
+}
+
+function openJurnalHistoryModal(){
+  function rows(){
+    const list = [...(state.jurnal||[])].sort((a,b)=> b.date.localeCompare(a.date));
+    if(list.length===0) return '<div class="empty-note">Belum ada jurnal tersimpan.</div>';
+    return list.map(j=>`
+      <div class="jurnal-card">
+        <div class="jurnal-card-head">
+          <b>${fmtDateShort(j.date)}</b>
+          <button class="icon-btn danger" data-del-jurnal="${j.id}">🗑</button>
+        </div>
+        ${j.materi ? `<div class="jurnal-field"><span>📗 Materi:</span> ${j.materi.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>` : ''}
+        ${j.catatan ? `<div class="jurnal-field"><span>📌 Catatan:</span> ${j.catatan.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>` : ''}
+      </div>`).join('');
+  }
+  function draw(){
+    openModal('Riwayat Jurnal', `<div id="jurnalHistRows">${rows()}</div>`, `<button class="save-btn" id="jHistClose">Tutup</button>`);
+    document.querySelectorAll('[data-del-jurnal]').forEach(btn=>{
+      btn.onclick = ()=>{
+        state.jurnal = (state.jurnal||[]).filter(j=>j.id!==btn.dataset.delJurnal);
+        saveAndRender();
+        draw();
+      };
+    });
+    document.getElementById('jHistClose').onclick = closeModal;
+  }
+  draw();
 }
 
 /* --- INPUT NILAI (Harian / Ujian digabung) --- */
@@ -1346,7 +1524,13 @@ function openQuranModal(){
   }
 
   function draw(){
-    openModal("Darus & Murojaah", bodyHtml(), `<button class="save-btn" id="qSave">Simpan ${mode==='darus'?'Darus':'Murojaah'}</button>`);
+    openModal("Darus & Murojaah", bodyHtml(), `
+      <div style="display:flex;gap:8px;">
+        <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="qRekapBtn">📊 Rekap</button>
+        <button class="save-btn" style="flex:1;" id="qSave">Simpan ${mode==='darus'?'Darus':'Murojaah'}</button>
+      </div>
+    `);
+    document.getElementById('qRekapBtn').onclick = openQuranRekapModal;
     document.querySelectorAll('[data-qmode]').forEach(btn=>{
       btn.onclick = ()=>{ mode = btn.dataset.qmode; draw(); };
     });
@@ -1552,6 +1736,9 @@ function maybeShowFirstRunQuranPrompt(){
 
 /* --- REKAP POIN: mingguan / bulanan / semester --- */
 function periodRange(kind){
+  if(kind==='all'){
+    return { start:'0000-01-01', end:'9999-12-31', label:'Semua Waktu' };
+  }
   const today = parseLocalDate(todayKey());
   if(kind==='week'){
     const dow = (today.getDay()+6)%7; // 0=Senin
@@ -1649,10 +1836,72 @@ function openRekapModal(){
   draw();
 }
 
+/* --- REKAP DARUS & MUROJAAH (khusus setoran & murojaah Qur'an, dengan riwayat) --- */
+function computeQuranRecap(kind){
+  const {start, end, label} = periodRange(kind);
+  const logs = (state.logs||[]).filter(l=> (l.type==='darus'||l.type==='murojaah') && l.date>=start && l.date<=end);
+  const perStudent = (state.students||[]).map(s=>{
+    const sLogs = logs.filter(l=>l.studentId===s.id).sort((a,b)=>b.ts-a.ts);
+    const darusCount = sLogs.filter(l=>l.type==='darus').length;
+    const murojaahCount = sLogs.filter(l=>l.type==='murojaah').length;
+    return { student:s, darusCount, murojaahCount, recent: sLogs.slice(0,3), darusPos: s.darusPos||null };
+  });
+  return { start, end, label, perStudent };
+}
+
+function quranRekapBodyHtml(kind){
+  const r = computeQuranRecap(kind);
+  const sorted = [...r.perStudent].sort((a,b)=> (b.darusCount+b.murojaahCount) - (a.darusCount+a.murojaahCount));
+  const rows = sorted.map(p=>{
+    const posLabel = p.darusPos ? `${surahLabel(p.darusPos.surah)} : ${p.darusPos.ayat}` : '—';
+    const recentHtml = p.recent.length ? p.recent.map(l=>`
+      <div class="qrekap-log"><span class="qrekap-date">${fmtDateShort(l.date)}</span><span>${l.note||(l.type==='darus'?'Setoran bacaan':'Murojaah hafalan')}</span></div>
+    `).join('') : '<div class="empty-note" style="margin:2px 0;">Belum ada setoran pada periode ini.</div>';
+    return `
+      <div class="qrekap-card">
+        <div class="qrekap-head">
+          <b>${p.student.name.split(' ')[0]}</b>
+          <div class="qrekap-badges">
+            <span class="rekap-mini" title="Darus">📖${p.darusCount}</span>
+            <span class="rekap-mini" title="Murojaah">🔁${p.murojaahCount}</span>
+          </div>
+        </div>
+        <div class="qrekap-pos">Posisi darus terakhir: <b>${posLabel}</b></div>
+        ${recentHtml}
+      </div>`;
+  }).join('');
+  return `
+    <div class="field-label">${r.label}${r.start!=='0000-01-01' ? ' · '+fmtDateShort(r.start)+'–'+fmtDateShort(r.end) : ''}</div>
+    ${rows || '<div class="empty-note">Belum ada siswa.</div>'}
+  `;
+}
+
+function openQuranRekapModal(){
+  let period = 'week';
+  function draw(){
+    openModal('Rekap Darus & Murojaah', `
+      <div class="tab-toggle" style="flex-wrap:wrap;">
+        <button class="${period==='week'?'active':''}" data-qrperiod="week">Mingguan</button>
+        <button class="${period==='month'?'active':''}" data-qrperiod="month">Bulanan</button>
+        <button class="${period==='semester'?'active':''}" data-qrperiod="semester">Semester</button>
+        <button class="${period==='all'?'active':''}" data-qrperiod="all">Semua</button>
+      </div>
+      ${quranRekapBodyHtml(period)}
+    `, `<button class="save-btn" id="qrekapCloseBtn">Tutup</button>`);
+    document.querySelectorAll('[data-qrperiod]').forEach(btn=>{
+      btn.onclick = ()=>{ period = btn.dataset.qrperiod; draw(); };
+    });
+    document.getElementById('qrekapCloseBtn').onclick = closeModal;
+  }
+  draw();
+}
+
 /* --- POIN MANUAL --- */
 function openPoinModal(){
   const qty = {};
   (state.students||[]).forEach(s=> qty[s.id]=0);
+  let step = 1;
+  let reasonVal = '';
 
   function rowsHtml(){
     return studentRowsTemplate((s)=>`
@@ -1662,31 +1911,50 @@ function openPoinModal(){
         <button class="qty-btn" data-qplus="${s.id}">+</button>
       </div>`);
   }
-  openModal('Poin Manual', `
-    <div class="field-label">Alasan</div>
-    <input class="text-input" id="pReason" placeholder="Contoh: Berani tampil di depan kelas" />
-    <div class="field-label">Atur Poin per Siswa</div>
-    <div id="pRows">${rowsHtml()}</div>
-  `, `<button class="save-btn" id="pSave">Simpan Poin</button>`);
+  function chipsHtml(){
+    const rules = state.aturanPoin||[];
+    if(rules.length===0) return '';
+    return `
+      <div class="field-label">Aturan Poin (ketuk untuk pakai)</div>
+      <div class="chip-row">${rules.map(r=>`<button type="button" class="rule-chip ${r.poin<0?'neg':'pos'}" data-rule="${r.id}">${r.label} (${r.poin>0?'+':''}${r.poin})</button>`).join('')}</div>
+    `;
+  }
+  function draw(){
+    openModal('Poin Manual', `
+      ${chipsHtml()}
+      <div class="field-label">Alasan</div>
+      <input class="text-input" id="pReason" placeholder="Contoh: Berani tampil di depan kelas" value="${reasonVal.replace(/"/g,'&quot;')}" />
+      <div class="field-label">Atur Poin per Siswa${step!==1?` · langkah ${step>0?'+':''}${step}`:''}</div>
+      <div id="pRows">${rowsHtml()}</div>
+    `, `<button class="save-btn" id="pSave">Simpan Poin</button>`);
 
-  function bind(){
+    document.getElementById('pReason').oninput = (e)=>{ reasonVal = e.target.value; };
+    document.querySelectorAll('[data-rule]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const rule = (state.aturanPoin||[]).find(r=>r.id===btn.dataset.rule);
+        if(!rule) return;
+        step = rule.poin;
+        reasonVal = rule.label;
+        draw();
+      };
+    });
     document.querySelectorAll('[data-qplus]').forEach(btn=>{
-      btn.onclick = ()=>{ const id=btn.dataset.qplus; qty[id]++; document.querySelector(`[data-qval="${id}"]`).textContent=qty[id]; };
+      btn.onclick = ()=>{ const id=btn.dataset.qplus; qty[id]+=(Math.abs(step)||1); document.querySelector(`[data-qval="${id}"]`).textContent=qty[id]; };
     });
     document.querySelectorAll('[data-qminus]').forEach(btn=>{
-      btn.onclick = ()=>{ const id=btn.dataset.qminus; qty[id]--; document.querySelector(`[data-qval="${id}"]`).textContent=qty[id]; };
+      btn.onclick = ()=>{ const id=btn.dataset.qminus; qty[id]-=(Math.abs(step)||1); document.querySelector(`[data-qval="${id}"]`).textContent=qty[id]; };
     });
-  }
-  bind();
 
-  document.getElementById('pSave').onclick = ()=>{
-    const reason = document.getElementById('pReason').value.trim() || 'Poin tambahan';
-    const deltas = Object.entries(qty).filter(([,v])=>v!==0).map(([studentId,delta])=>({studentId, delta}));
-    if(deltas.length===0){ closeModal(); return; }
-    const {touched,totalPositive} = applyDeltas(deltas, reason, 'poin');
-    closeModal();
-    showCelebration(totalPositive, `${reason} — poin diberikan ke ${deltas.length} siswa.`, touched);
-  };
+    document.getElementById('pSave').onclick = ()=>{
+      const reason = document.getElementById('pReason').value.trim() || 'Poin tambahan';
+      const deltas = Object.entries(qty).filter(([,v])=>v!==0).map(([studentId,delta])=>({studentId, delta}));
+      if(deltas.length===0){ closeModal(); return; }
+      const {touched,totalPositive} = applyDeltas(deltas, reason, 'poin');
+      closeModal();
+      showCelebration(totalPositive, `${reason} — poin diberikan ke ${deltas.length} siswa.`, touched);
+    };
+  }
+  draw();
 }
 
 /* ---------------- NAV BINDINGS ---------------- */
