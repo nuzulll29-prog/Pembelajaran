@@ -456,21 +456,30 @@
   }
   .zoom-btn:active{transform:scale(.92);}
   #mushafZoomVal{font-size:11.5px;font-weight:800;min-width:36px;text-align:center;}
-  /* Isi mushaf: kolom ayat rata kanan. direction:ltr di sini hanya supaya align-items:flex-end
-     berarti 'kanan'; tiap ayat tetap RTL (diatur oleh quran-madina-html sendiri). */
-  #mushafContent{display:flex;flex-direction:column;align-items:flex-end;width:max-content;direction:ltr;}
+  /* Isi mushaf: tiap ayat jadi satu paragraf RTL yang mengalir dan membungkus otomatis
+     sesuai lebar layar (bukan lagi baris-baris mushaf berlebar tetap). */
+  #mushafContent{display:block;width:100%;direction:rtl;}
   .mushaf-wrap{
     background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;
-    padding:18px 10px;margin-bottom:10px;max-height:58vh;overflow:auto;
-    /* RTL: tampilan awal menempel di sisi kanan, dan saat ayat diperbesar, bagian yang meluap
-       ada di sisi kiri dan bisa di-scroll. (Sebelumnya flex + justify-content:center membuat
-       luapan terbagi ke kiri & kanan; sisi kiri tidak bisa di-scroll sehingga tulisan terpotong.) */
+    padding:18px 10px;margin-bottom:10px;max-height:58vh;overflow-x:hidden;overflow-y:auto;
+    /* RTL: teks menempel di sisi kanan. Teks membungkus otomatis mengikuti lebar, jadi saat
+       diperbesar tidak ada lagi bagian yang terpotong di kiri (cukup scroll ke bawah). */
     direction:rtl;display:block;box-shadow:var(--shadow-sm);
   }
-  .mushaf-block{margin-bottom:2px;}
-  /* Library menyembunyikan potongan ayat tetangga di baris mushaf yang sama dengan visibility:hidden,
-     tetapi potongan itu tetap memakan tempat, sehingga awal ayat terdorong ke tengah/kiri seperti
-     paragraf. display:none membuat awal ayat mulai dari pinggir kanan. */
+  .mushaf-block{display:block;margin-bottom:2px;}
+  /* Library merender baris mushaf berlebar tetap: tiap baris display:block + scaleX, dan potongan
+     ayat tetangga di baris yang sama hanya disembunyikan (visibility:hidden) tapi tetap makan tempat.
+     Akibatnya awal ayat (mis. "من", "هو") sendirian di satu baris dan sisanya turun ke baris berikutnya.
+     Di sini semua itu dinetralkan: potongan tersembunyi dibuang, baris dijadikan inline tanpa skala,
+     sehingga teks satu ayat mengalir sambung dari kanan dan turun baris otomatis di lebar layar. */
+  #mushafContent quran-madina-html{
+    display:block !important;width:auto !important;max-width:100%;box-sizing:border-box;
+    padding:2px 6px;text-align:right;line-height:2.1;
+  }
+  #mushafContent quran-madina-html-line{
+    display:inline !important;transform:none !important;white-space:normal !important;margin:0 !important;
+  }
+  #mushafContent quran-madina-html-line + quran-madina-html-line::before{content:" ";white-space:pre;}
   #mushafContent quran-madina-html-line > div[style*="visibility"],
   #mushafContent .quran-madina-html-word-hidden{display:none !important;}
   .mushaf-note{font-size:10.5px;color:var(--ink-soft);text-align:center;margin:0 0 4px;}
