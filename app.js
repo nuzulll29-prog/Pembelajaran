@@ -1424,20 +1424,15 @@ function surahLabel(n){
 // rendered locally via the bundled quran-madina-html reader — works fully offline once
 // a surah's data has been fetched once (cached by the service worker).
 //
-// The renderer only reliably lays out a handful of ayat per call (it silently truncates
-// — or in the worst case blanks out — once a range gets too long), so a big range is
-// split into small chunks, each rendered as its own <quran-madina-html> instance and
-// stacked inside one scrollable wrapper. That way the whole requested range is readable
-// and scrollable, not just whichever ayat happened to fit in a single call.
-const MUSHAF_CHUNK_SIZE = 7;
+// The renderer only reliably lays out ayat that sit within a single internal mushaf
+// "page" — a range that straddles a page boundary can silently render blank instead of
+// truncating cleanly (this happens at unpredictable points depending on where a surah's
+// page breaks fall, not simply after N ayat). Since we have no access to those page
+// boundaries from here, every ayat is rendered as its own separate instance — a single
+// ayat can never straddle a boundary — and stacked inside one scrollable wrapper.
 function mushafChunks(from, to){
   const chunks = [];
-  let start = from;
-  while(start <= to){
-    const end = Math.min(start + MUSHAF_CHUNK_SIZE - 1, to);
-    chunks.push([start, end]);
-    start = end + 1;
-  }
+  for(let a=from; a<=to; a++) chunks.push([a,a]);
   return chunks;
 }
 
@@ -1447,11 +1442,12 @@ function openMushafView(surah, from, to, onBack){
   const endAyat = (to && to>from) ? to : from;
   const ayatLabel = (endAyat>from) ? `${from}-${endAyat}` : `${from}`;
   let zoom = (state.settings && state.settings.mushafZoom) || 1;
+  let ro = null;
 
   const chunksHtml = mushafChunks(from, endAyat).map(([a,b])=>{
     const range = b>a ? `${a}-${b}` : `${a}`;
-    return `<quran-madina-html sura="${surah}" aya="${range}" headless="true"></quran-madina-html>`;
-  }).join('<div class="mushaf-divider"></div>');
+    return `<div class="mushaf-block"><quran-madina-html sura="${surah}" aya="${range}" headless="true"></quran-madina-html></div>`;
+  }).join('');
 
   openModal(surahName, `
     <div class="mushaf-zoom-row">
@@ -1463,24 +1459,47 @@ function openMushafView(surah, from, to, onBack){
       </div>
     </div>
     <div class="mushaf-wrap">
-      <div id="mushafContent" style="zoom:${zoom};">${chunksHtml}</div>
+      <div class="mushaf-box" id="mushafBox"><div id="mushafContent">${chunksHtml}</div></div>
     </div>
     <div class="mushaf-note">Ayat ${ayatLabel} — bisa dibaca offline setelah dibuka sekali saat ada internet</div>
   `, `<button class="save-btn" id="mushafBackBtn">‹ Kembali</button>`);
 
   document.getElementById('mushafBackBtn').onclick = ()=>{
+    if(ro) ro.disconnect();
     if(onBack) onBack(); else closeModal();
   };
 
+  // Uses transform:scale (not the CSS "zoom" property) so the reader's own internal
+  // layout math never sees a different effective pixel size and can't mis-measure —
+  // that mismatch was what caused text to get cut off at non-100% sizes before.
+  // A ResizeObserver keeps the surrounding box sized to match as content loads in
+  // (the reader fetches its data asynchronously the first time), so the scrollable
+  // wrapper always has room for the fully scaled content instead of clipping it.
+  const content = document.getElementById('mushafContent');
+  const box = document.getElementById('mushafBox');
+
+  function fitBox(){
+    if(!content || !box) return;
+    const w = content.offsetWidth;
+    const h = content.offsetHeight;
+    box.style.width = (w*zoom)+'px';
+    box.style.height = (h*zoom)+'px';
+  }
   function applyZoom(){
-    const content = document.getElementById('mushafContent');
-    if(content) content.style.zoom = zoom;
+    if(content){ content.style.transform = `scale(${zoom})`; content.style.transformOrigin = 'top left'; }
     const val = document.getElementById('mushafZoomVal');
     if(val) val.textContent = Math.round(zoom*100)+'%';
     state.settings = state.settings || {};
     state.settings.mushafZoom = zoom;
     persist();
+    fitBox();
   }
+  if('ResizeObserver' in window && content){
+    ro = new ResizeObserver(fitBox);
+    ro.observe(content);
+  }
+  applyZoom();
+
   document.getElementById('mushafZoomMinus').onclick = ()=>{
     zoom = Math.max(0.7, +(zoom-0.1).toFixed(2));
     applyZoom();
