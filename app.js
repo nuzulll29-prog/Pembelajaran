@@ -1442,7 +1442,6 @@ function openMushafView(surah, from, to, onBack){
   const endAyat = (to && to>from) ? to : from;
   const ayatLabel = (endAyat>from) ? `${from}-${endAyat}` : `${from}`;
   let zoom = (state.settings && state.settings.mushafZoom) || 1;
-  let ro = null;
 
   const chunksHtml = mushafChunks(from, endAyat).map(([a,b])=>{
     const range = b>a ? `${a}-${b}` : `${a}`;
@@ -1459,46 +1458,27 @@ function openMushafView(surah, from, to, onBack){
       </div>
     </div>
     <div class="mushaf-wrap">
-      <div class="mushaf-box" id="mushafBox"><div id="mushafContent">${chunksHtml}</div></div>
+      <div id="mushafContent" style="zoom:${zoom};">${chunksHtml}</div>
     </div>
     <div class="mushaf-note">Ayat ${ayatLabel} — bisa dibaca offline setelah dibuka sekali saat ada internet</div>
   `, `<button class="save-btn" id="mushafBackBtn">‹ Kembali</button>`);
 
   document.getElementById('mushafBackBtn').onclick = ()=>{
-    if(ro) ro.disconnect();
     if(onBack) onBack(); else closeModal();
   };
 
-  // Uses transform:scale (not the CSS "zoom" property) so the reader's own internal
-  // layout math never sees a different effective pixel size and can't mis-measure —
-  // that mismatch was what caused text to get cut off at non-100% sizes before.
-  // A ResizeObserver keeps the surrounding box sized to match as content loads in
-  // (the reader fetches its data asynchronously the first time), so the scrollable
-  // wrapper always has room for the fully scaled content instead of clipping it.
-  const content = document.getElementById('mushafContent');
-  const box = document.getElementById('mushafBox');
-
-  function fitBox(){
-    if(!content || !box) return;
-    const w = content.offsetWidth;
-    const h = content.offsetHeight;
-    box.style.width = (w*zoom)+'px';
-    box.style.height = (h*zoom)+'px';
-  }
+  // Uses the CSS "zoom" property so the browser's own layout/reflow handles the resize
+  // natively (including the scrollable size) — each ayat's line-wrapping is already
+  // finished by the time this runs, so nothing needs to be measured or resized by hand.
   function applyZoom(){
-    if(content){ content.style.transform = `scale(${zoom})`; content.style.transformOrigin = 'top left'; }
+    const content = document.getElementById('mushafContent');
+    if(content) content.style.zoom = zoom;
     const val = document.getElementById('mushafZoomVal');
     if(val) val.textContent = Math.round(zoom*100)+'%';
     state.settings = state.settings || {};
     state.settings.mushafZoom = zoom;
     persist();
-    fitBox();
   }
-  if('ResizeObserver' in window && content){
-    ro = new ResizeObserver(fitBox);
-    ro.observe(content);
-  }
-  applyZoom();
 
   document.getElementById('mushafZoomMinus').onclick = ()=>{
     zoom = Math.max(0.7, +(zoom-0.1).toFixed(2));

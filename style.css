@@ -456,14 +456,12 @@
   }
   .zoom-btn:active{transform:scale(.92);}
   #mushafZoomVal{font-size:11.5px;font-weight:800;min-width:36px;text-align:center;}
-  #mushafContent{display:flex;flex-direction:column;align-items:center;width:100%;}
+  #mushafContent{display:inline-flex;flex-direction:column;align-items:flex-end;}
   .mushaf-wrap{
     background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;
     padding:18px 10px;margin-bottom:10px;max-height:58vh;overflow:auto;
-    display:flex;justify-content:center;align-items:flex-start;box-shadow:var(--shadow-sm);
+    display:flex;justify-content:center;box-shadow:var(--shadow-sm);
   }
-  .mushaf-box{position:relative;flex-shrink:0;}
-  #mushafContent{display:inline-flex;flex-direction:column;align-items:center;}
   .mushaf-block{margin-bottom:2px;}
   .mushaf-note{font-size:10.5px;color:var(--ink-soft);text-align:center;margin:0 0 4px;}
   .form-row{
