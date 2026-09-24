@@ -2,7 +2,7 @@
 // Precaches the app shell + the mushaf reader's core assets on install, then uses a
 // cache-first (network-fallback, background-refresh) strategy for everything else —
 // so any surah a teacher has opened once keeps working with no internet afterwards.
-const CACHE_NAME = 'kelas-madin-v4';
+const CACHE_NAME = 'kelas-madin-v5';
 const APP_SHELL = [
   './',
   './index.html',
