@@ -445,11 +445,24 @@
   .rule-chip.neg{border-color:var(--red-soft);color:var(--danger);}
 
   /* MUSHAF VIEWER (offline Qur'an reader) */
+  .mushaf-zoom-row{
+    display:flex;align-items:center;justify-content:space-between;background:var(--sage-soft);
+    border-radius:12px;padding:8px 12px;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--accent);
+  }
+  .zoom-ctrl{display:flex;align-items:center;gap:8px;}
+  .zoom-btn{
+    width:30px;height:30px;border-radius:9px;border:1px solid var(--sage-line);background:var(--bg-elevated);
+    color:var(--accent);font-weight:800;font-size:12px;
+  }
+  .zoom-btn:active{transform:scale(.92);}
+  #mushafZoomVal{font-size:11.5px;font-weight:800;min-width:36px;text-align:center;}
+  #mushafContent{display:flex;flex-direction:column;align-items:center;width:100%;}
   .mushaf-wrap{
     background:var(--bg-elevated);border:1px solid var(--card-border);border-radius:16px;
     padding:18px 10px;margin-bottom:10px;max-height:58vh;overflow-y:auto;overflow-x:hidden;
     display:flex;justify-content:center;box-shadow:var(--shadow-sm);
   }
+  .mushaf-divider{width:60%;height:1px;background:var(--sage-line);margin:14px auto;}
   .mushaf-note{font-size:10.5px;color:var(--ink-soft);text-align:center;margin:0 0 4px;}
   .form-row{
     display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--sage-line);

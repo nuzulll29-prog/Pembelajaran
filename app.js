@@ -153,9 +153,10 @@ function migrateGenders(){
   if(!Array.isArray(state.mataPelajaran)){ state.mataPelajaran = ['Bahasa Arab','Fiqih','Aqidah Akhlak','Tajwid','Tahfidz']; changed = true; }
   if(!state.jadwalPelajaran || typeof state.jadwalPelajaran!=='object'){ state.jadwalPelajaran = {}; changed = true; }
   if(!state.settings || typeof state.settings!=='object'){
-    state.settings = { appName:'Kelas Madin', tagline:'Belajar • Beramal • Jadi Anak Sholeh', greeting:'semangat belajar hari ini! ✨' };
+    state.settings = { appName:'Kelas Madin', tagline:'Belajar • Beramal • Jadi Anak Sholeh', greeting:'semangat belajar hari ini! ✨', mushafZoom:1 };
     changed = true;
   }
+  if(typeof state.settings.mushafZoom !== 'number'){ state.settings.mushafZoom = 1; changed = true; }
   if(!Array.isArray(state.jurnal)){ state.jurnal = []; changed = true; }
   if(!Array.isArray(state.aturanPoin)){
     state.aturanPoin = [
@@ -219,6 +220,7 @@ function defaultState(){
       appName: 'Kelas Madin',
       tagline: 'Belajar • Beramal • Jadi Anak Sholeh',
       greeting: 'semangat belajar hari ini! ✨',
+      mushafZoom: 1,
     },
     jurnal: [],
     aturanPoin: [
@@ -1421,18 +1423,71 @@ function surahLabel(n){
 // Shows the requested ayat range as real mushaf-style Arabic text (no translation),
 // rendered locally via the bundled quran-madina-html reader — works fully offline once
 // a surah's data has been fetched once (cached by the service worker).
+//
+// The renderer only reliably lays out a handful of ayat per call (it silently truncates
+// — or in the worst case blanks out — once a range gets too long), so a big range is
+// split into small chunks, each rendered as its own <quran-madina-html> instance and
+// stacked inside one scrollable wrapper. That way the whole requested range is readable
+// and scrollable, not just whichever ayat happened to fit in a single call.
+const MUSHAF_CHUNK_SIZE = 7;
+function mushafChunks(from, to){
+  const chunks = [];
+  let start = from;
+  while(start <= to){
+    const end = Math.min(start + MUSHAF_CHUNK_SIZE - 1, to);
+    chunks.push([start, end]);
+    start = end + 1;
+  }
+  return chunks;
+}
+
 function openMushafView(surah, from, to, onBack){
   const found = SURAH_LIST.find(([n])=>String(n)===String(surah));
   const surahName = found ? `${found[0]}. ${found[1]}` : `Surat ${surah}`;
-  const ayatLabel = (to && to>from) ? `${from}-${to}` : `${from}`;
+  const endAyat = (to && to>from) ? to : from;
+  const ayatLabel = (endAyat>from) ? `${from}-${endAyat}` : `${from}`;
+  let zoom = (state.settings && state.settings.mushafZoom) || 1;
+
+  const chunksHtml = mushafChunks(from, endAyat).map(([a,b])=>{
+    const range = b>a ? `${a}-${b}` : `${a}`;
+    return `<quran-madina-html sura="${surah}" aya="${range}" headless="true"></quran-madina-html>`;
+  }).join('<div class="mushaf-divider"></div>');
+
   openModal(surahName, `
+    <div class="mushaf-zoom-row">
+      <span>🔤 Ukuran Tulisan</span>
+      <div class="zoom-ctrl">
+        <button class="zoom-btn" id="mushafZoomMinus">A−</button>
+        <span id="mushafZoomVal">${Math.round(zoom*100)}%</span>
+        <button class="zoom-btn" id="mushafZoomPlus">A+</button>
+      </div>
+    </div>
     <div class="mushaf-wrap">
-      <quran-madina-html sura="${surah}" aya="${ayatLabel}" headless="true"></quran-madina-html>
+      <div id="mushafContent" style="zoom:${zoom};">${chunksHtml}</div>
     </div>
     <div class="mushaf-note">Ayat ${ayatLabel} — bisa dibaca offline setelah dibuka sekali saat ada internet</div>
   `, `<button class="save-btn" id="mushafBackBtn">‹ Kembali</button>`);
+
   document.getElementById('mushafBackBtn').onclick = ()=>{
     if(onBack) onBack(); else closeModal();
+  };
+
+  function applyZoom(){
+    const content = document.getElementById('mushafContent');
+    if(content) content.style.zoom = zoom;
+    const val = document.getElementById('mushafZoomVal');
+    if(val) val.textContent = Math.round(zoom*100)+'%';
+    state.settings = state.settings || {};
+    state.settings.mushafZoom = zoom;
+    persist();
+  }
+  document.getElementById('mushafZoomMinus').onclick = ()=>{
+    zoom = Math.max(0.7, +(zoom-0.1).toFixed(2));
+    applyZoom();
+  };
+  document.getElementById('mushafZoomPlus').onclick = ()=>{
+    zoom = Math.min(1.8, +(zoom+0.1).toFixed(2));
+    applyZoom();
   };
 }
 
