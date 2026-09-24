@@ -307,7 +307,7 @@ function saveAndRender(){ persist(); render(); }
 
 
 /* ---------------- POINTS ENGINE ---------------- */
-function applyDeltas(deltas, note, type){
+function applyDeltas(deltas, note, type, dateKey){
   // deltas: [{studentId, delta}]
   const touched = [];
   let totalPositive = 0;
@@ -316,7 +316,7 @@ function applyDeltas(deltas, note, type){
     const s = state.students.find(x=>x.id===d.studentId);
     if(!s) return;
     s.points = clamp((s.points||0) + d.delta, 0, 999999);
-    state.logs.unshift({ id:uid(), studentId:d.studentId, type, delta:d.delta, note:note||'', date:todayKey(), ts:Date.now() });
+    state.logs.unshift({ id:uid(), studentId:d.studentId, type, delta:d.delta, note:note||'', date:dateKey||todayKey(), ts:Date.now() });
     if(d.delta > 0) totalPositive += d.delta;
     touched.push({id:d.studentId, delta:d.delta, name:s.name});
   });
@@ -450,6 +450,10 @@ function bindScreenEvents(){
   if(openRekapBtn) openRekapBtn.onclick = openRekapModal;
   const openRekapBtn2 = document.getElementById('openRekapBtn2');
   if(openRekapBtn2) openRekapBtn2.onclick = openRekapModal;
+  const openAbsRekapBtn = document.getElementById('openAbsRekapBtn');
+  if(openAbsRekapBtn) openAbsRekapBtn.onclick = ()=> openRekapAbsensiModal();
+  const openAbsRekapBtn2 = document.getElementById('openAbsRekapBtn2');
+  if(openAbsRekapBtn2) openAbsRekapBtn2.onclick = ()=> openRekapAbsensiModal();
   const openQuranRekapBtn = document.getElementById('openQuranRekapBtn');
   if(openQuranRekapBtn) openQuranRekapBtn.onclick = openQuranRekapModal;
   const pengBackBtn = document.getElementById('pengBackBtn');
@@ -604,6 +608,7 @@ function renderPeringkat(){
   return `
     <div class="section-title">Peringkat Kelas <span class="sub">Total ${kelasTotalPoin()} poin</span></div>
     <button class="outline-btn" id="openRekapBtn" style="margin-bottom:12px;">📈 Rekap Perkembangan (Mingguan/Bulanan/Semester)</button>
+    <button class="outline-btn" id="openAbsRekapBtn" style="margin-bottom:12px;">📋 Rekap Absensi (lihat & edit)</button>
     ${rows || '<div class="empty-note">Belum ada siswa.</div>'}
   `;
 }
@@ -683,6 +688,11 @@ function renderPengaturan(){
       <div class="settings-row" id="openRekapBtn2">
         <span class="ic">📈</span>
         <div class="meta-col"><b>Rekap Perkembangan Siswa</b><span class="sub">Poin per minggu, bulan & semester</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="settings-row" id="openAbsRekapBtn2">
+        <span class="ic">📋</span>
+        <div class="meta-col"><b>Rekap Absensi</b><span class="sub">Hadir, telat, sakit, izin, alpa — bisa diedit</span></div>
         <span class="chev">›</span>
       </div>
       <div class="settings-row" id="openQuranRekapBtn">
@@ -1020,25 +1030,33 @@ function openActionModal(key){
 }
 
 /* --- ABSENSI --- */
-function openAbsensiModal(){
-  const today = todayKey();
-  const savedToday = state.absensi[today] || {};
-  const isEdit = Object.keys(savedToday).length > 0;
+// "Telat" tetap dihitung HADIR di rekap, tetapi tidak mendapat tambahan poin (0).
+const ABSEN_ORDER = ['Hadir','Telat','Sakit','Izin','Alpa'];
+const ABSEN_PTS = {Hadir:5, Telat:0, Sakit:0, Izin:0, Alpa:-2};
+const ABSEN_META = {
+  Hadir:{icon:'✅', label:'Hadir', chip:'var(--sage-soft)'},
+  Telat:{icon:'⏰', label:'Telat', chip:'var(--gold-soft)'},
+  Sakit:{icon:'🤒', label:'Sakit', chip:'var(--peach-soft)'},
+  Izin:{icon:'📩', label:'Izin', chip:'var(--blue-soft)'},
+  Alpa:{icon:'❌', label:'Alpa', chip:'var(--red-soft)'},
+};
+function fmtDateDay(key){ return parseLocalDate(key).toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'}); }
+
+// dateArg (opsional): tanggal 'YYYY-MM-DD' yang diedit; kosong = hari ini.
+// onBack (opsional): dipanggil saat kembali/selesai (dipakai saat dibuka dari Rekap Absensi).
+function openAbsensiModal(dateArg, onBack){
+  const dateKey = (typeof dateArg==='string' && dateArg) ? dateArg : todayKey();
+  const isToday = dateKey===todayKey();
+  const saved = {...(state.absensi[dateKey] || {})};
+  const isEdit = Object.keys(saved).length > 0;
   const statuses = {};
-  (state.students||[]).forEach(s=> statuses[s.id] = savedToday[s.id] || 'Hadir');
-  const STATUS_ORDER = ['Hadir','Sakit','Izin','Alpa'];
-  const STATUS_PTS = {Hadir:5, Sakit:0, Izin:0, Alpa:-2};
-  const STATUS_META = {
-    Hadir:{icon:'✅', label:'Hadir', chip:'var(--sage-soft)'},
-    Sakit:{icon:'🤒', label:'Sakit', chip:'var(--peach-soft)'},
-    Izin:{icon:'📩', label:'Izin', chip:'var(--blue-soft)'},
-    Alpa:{icon:'❌', label:'Alpa', chip:'var(--red-soft)'},
-  };
+  (state.students||[]).forEach(s=> statuses[s.id] = saved[s.id] || 'Hadir');
+  const whenLabel = isToday ? 'Hari Ini' : fmtDateDay(dateKey);
 
   function cardsHtml(){
     return (state.students||[]).map((s,i)=>{
       const st = avatarStyle(s.avatarIdx ?? i);
-      const meta = STATUS_META[statuses[s.id]];
+      const meta = ABSEN_META[statuses[s.id]];
       return `
       <div class="absen-card" data-absen-id="${s.id}">
         <div class="avatar-wrap">
@@ -1051,19 +1069,25 @@ function openAbsensiModal(){
     }).join('');
   }
 
-  openModal(isEdit ? 'Edit Absensi Hari Ini' : 'Absensi Hari Ini', `
-    ${isEdit ? `<div class="jurnal-reminder"><span class="ic">📝</span><div><b>Mengedit absensi yang sudah tersimpan hari ini.</b><p>Perubahan otomatis menyesuaikan poin yang sudah diberikan.</p></div></div>` : ''}
-    <div class="absen-hint">👆 Ketuk avatar untuk ganti status: Hadir → Sakit → Izin → Alpa</div>
+  const footHtml = `<div style="display:flex;gap:8px;">
+    <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="absRekapBtn">${onBack ? '‹ Kembali' : '📊 Rekap'}</button>
+    <button class="save-btn" style="flex:2;" id="absSave">${isEdit ? 'Update Absensi' : 'Simpan Absensi'}</button>
+  </div>`;
+
+  openModal(`${isEdit ? 'Edit Absensi' : 'Absensi'} ${whenLabel}`, `
+    ${isEdit ? `<div class="jurnal-reminder"><span class="ic">📝</span><div><b>Mengedit absensi ${isToday ? 'hari ini' : 'tanggal ini'} yang sudah tersimpan.</b><p>Perubahan otomatis menyesuaikan poin yang sudah diberikan.</p></div></div>` : ''}
+    <div class="absen-hint">👆 Ketuk avatar: Hadir → Telat → Sakit → Izin → Alpa</div>
+    <div class="absen-hint" style="margin-top:-8px;">⏰ Telat = tetap hadir, tanpa tambahan poin</div>
     <div class="absen-grid" id="absGrid">${cardsHtml()}</div>
-  `, `<button class="save-btn" id="absSave">${isEdit ? 'Update Absensi' : 'Simpan Absensi'}</button>`);
+  `, footHtml);
 
   function bindTaps(){
     document.querySelectorAll('[data-absen-id]').forEach(card=>{
       card.onclick = ()=>{
         const id = card.dataset.absenId;
-        const idx = STATUS_ORDER.indexOf(statuses[id]);
-        statuses[id] = STATUS_ORDER[(idx+1)%STATUS_ORDER.length];
-        const meta = STATUS_META[statuses[id]];
+        const idx = ABSEN_ORDER.indexOf(statuses[id]);
+        statuses[id] = ABSEN_ORDER[(idx+1)%ABSEN_ORDER.length];
+        const meta = ABSEN_META[statuses[id]];
 
         card.querySelector('.absen-badge').textContent = meta.icon;
         const label = card.querySelector('.absen-status-label');
@@ -1085,18 +1109,121 @@ function openAbsensiModal(){
   }
   bindTaps();
 
+  document.getElementById('absRekapBtn').onclick = ()=>{
+    if(onBack) onBack(); else openRekapAbsensiModal();
+  };
+
   document.getElementById('absSave').onclick = ()=>{
     const deltas = Object.entries(statuses).map(([studentId,st])=>{
-      const oldSt = savedToday[studentId];
-      const oldPts = oldSt ? STATUS_PTS[oldSt] : 0;
-      return {studentId, delta: STATUS_PTS[st] - oldPts};
+      const oldSt = saved[studentId];
+      const oldPts = oldSt ? (ABSEN_PTS[oldSt] || 0) : 0;
+      return {studentId, delta: ABSEN_PTS[st] - oldPts};
     });
-    const hadirCount = Object.values(statuses).filter(v=>v==='Hadir').length;
-    state.absensi[today] = {...statuses};
-    const {touched,totalPositive} = applyDeltas(deltas, isEdit ? 'Absensi (diperbarui)' : 'Absensi', 'absensi');
-    closeModal();
-    showCelebration(totalPositive, `Absensi tersimpan! ${hadirCount} siswa hadir hari ini.`, touched);
+    const vals = Object.values(statuses);
+    const telatCount = vals.filter(v=>v==='Telat').length;
+    const hadirCount = vals.filter(v=>v==='Hadir').length + telatCount; // telat tetap hadir
+    state.absensi[dateKey] = {...statuses};
+    const note = `Absensi${isToday ? '' : ' '+fmtDateShort(dateKey)}${isEdit ? ' (diperbarui)' : ''}`;
+    const {touched,totalPositive} = applyDeltas(deltas, note, 'absensi', dateKey);
+    if(onBack) onBack(); else closeModal();
+    showCelebration(totalPositive,
+      `Absensi ${isEdit ? 'diperbarui' : 'tersimpan'}! ${hadirCount} siswa hadir${telatCount ? ` (${telatCount} telat)` : ''} ${isToday ? 'hari ini' : 'pada '+fmtDateDay(dateKey)}.`,
+      touched);
   };
+}
+
+/* --- REKAP ABSENSI (dengan opsi edit per tanggal) --- */
+function computeAbsenRecap(kind){
+  const {start, end, label} = periodRange(kind);
+  const ids = new Set((state.students||[]).map(s=>s.id));
+  const dates = Object.keys(state.absensi||{})
+    .filter(d=> d>=start && d<=end && Object.keys(state.absensi[d]||{}).some(id=>ids.has(id)))
+    .sort().reverse(); // terbaru di atas
+  const perStudent = (state.students||[]).map(s=>{
+    const c = {Hadir:0, Telat:0, Sakit:0, Izin:0, Alpa:0};
+    let total = 0;
+    dates.forEach(d=>{
+      const st = state.absensi[d][s.id];
+      if(st && c[st]!==undefined){ c[st]++; total++; }
+    });
+    const hadirTotal = c.Hadir + c.Telat; // telat tetap hadir
+    return { student:s, counts:c, hadirTotal, total, pct: total ? Math.round(hadirTotal*100/total) : null };
+  });
+  return { start, end, label, dates, perStudent };
+}
+
+function absenRekapBodyHtml(kind){
+  const r = computeAbsenRecap(kind);
+  const rows = r.perStudent.map(p=>`
+    <div class="rekap-row abs-row">
+      <div class="rekap-name">${p.student.name.split(' ')[0]}</div>
+      <div class="rekap-mini abs-num">${p.hadirTotal}</div>
+      <div class="rekap-mini abs-num">${p.counts.Telat}</div>
+      <div class="rekap-mini abs-num">${p.counts.Sakit}</div>
+      <div class="rekap-mini abs-num">${p.counts.Izin}</div>
+      <div class="rekap-mini abs-num ${p.counts.Alpa ? 'bad' : ''}">${p.counts.Alpa}</div>
+      <div class="rekap-total abs-pct ${p.pct!=null && p.pct<75 ? 'neg' : ''}">${p.pct!=null ? p.pct+'%' : '—'}</div>
+    </div>`).join('');
+
+  const nameById = {};
+  (state.students||[]).forEach(s=> nameById[s.id] = s.name.split(' ')[0]);
+  const hist = r.dates.map(d=>{
+    const rec = state.absensi[d];
+    const entries = Object.entries(rec).filter(([id])=>nameById[id]);
+    const cnt = {Hadir:0, Telat:0, Sakit:0, Izin:0, Alpa:0};
+    entries.forEach(([,st])=>{ if(cnt[st]!==undefined) cnt[st]++; });
+    // Hadir sudah termasuk Telat; jumlah telat ditampilkan terpisah sebagai keterangan.
+    const chips = `<span title="Hadir (termasuk telat)">✅${cnt.Hadir+cnt.Telat}</span>`
+      + (cnt.Telat ? `<span class="abs-late" title="Telat">(⏰${cnt.Telat} telat)</span>` : '')
+      + ['Sakit','Izin','Alpa'].map(k=>`<span title="${k}">${ABSEN_META[k].icon}${cnt[k]}</span>`).join('');
+    const who = entries.filter(([,st])=>st!=='Hadir')
+      .map(([id,st])=>`${ABSEN_META[st] ? ABSEN_META[st].icon : ''} ${nameById[id]}`).join(' · ');
+    return `
+    <div class="abs-hist-row">
+      <div class="abs-hist-main">
+        <div class="abs-date">${fmtDateDay(d)}</div>
+        <div class="abs-chips">${chips}</div>
+        ${who ? `<div class="abs-who">${who}</div>` : ''}
+      </div>
+      <button class="icon-btn" data-abs-edit="${d}" title="Edit absensi ${fmtDateDay(d)}">✏️</button>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="field-label">${r.label} · ${r.dates.length} pertemuan</div>
+    <div class="rekap-row rekap-head abs-row">
+      <div class="rekap-name">Nama</div>
+      <div class="rekap-mini">Hadir</div><div class="rekap-mini">Telat</div><div class="rekap-mini">Sakit</div><div class="rekap-mini">Izin</div><div class="rekap-mini">Alpa</div>
+      <div class="rekap-total">%</div>
+    </div>
+    ${rows || '<div class="empty-note">Belum ada siswa.</div>'}
+    <div class="mini-note" style="margin:6px 2px 0;">Hadir sudah termasuk Telat (Telat tidak mendapat tambahan poin). Persen = Hadir ÷ jumlah pertemuan.</div>
+    <div class="section-title" style="margin-top:18px;">Riwayat Absensi <span class="sub">ketuk ✏️ untuk mengedit</span></div>
+    ${hist || '<div class="empty-note">Belum ada absensi pada periode ini.</div>'}
+  `;
+}
+
+function openRekapAbsensiModal(initialPeriod){
+  let period = initialPeriod || 'week';
+  function draw(){
+    openModal('Rekap Absensi', `
+      <div class="tab-toggle" style="flex-wrap:wrap;">
+        <button class="${period==='week'?'active':''}" data-abs-period="week">Mingguan</button>
+        <button class="${period==='month'?'active':''}" data-abs-period="month">Bulanan</button>
+        <button class="${period==='semester'?'active':''}" data-abs-period="semester">Semester</button>
+        <button class="${period==='all'?'active':''}" data-abs-period="all">Semua</button>
+      </div>
+      ${absenRekapBodyHtml(period)}
+    `, `<button class="save-btn" id="absRekapCloseBtn">Tutup</button>`);
+    document.querySelectorAll('[data-abs-period]').forEach(btn=>{
+      btn.onclick = ()=>{ period = btn.dataset.absPeriod; draw(); };
+    });
+    document.querySelectorAll('[data-abs-edit]').forEach(btn=>{
+      btn.onclick = ()=> openAbsensiModal(btn.dataset.absEdit, ()=> openRekapAbsensiModal(period));
+    });
+    document.getElementById('absRekapCloseBtn').onclick = closeModal;
+  }
+  draw();
 }
 
 /* --- JURNAL PEMBELAJARAN & CATATAN --- */
