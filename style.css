@@ -413,6 +413,18 @@
   .rekap-mini{width:32px;flex-shrink:0;font-size:10.5px;color:var(--ink-soft);text-align:center;}
   .rekap-total{width:48px;flex-shrink:0;font-size:13px;font-weight:800;color:var(--accent);text-align:right;}
   .rekap-total.neg{color:var(--danger);}
+  /* REKAP ABSENSI */
+  .abs-row{gap:4px;}
+  .abs-row .rekap-mini{width:34px;}
+  .abs-row .rekap-total{width:44px;}
+  .rekap-mini.abs-num{font-size:12.5px;font-weight:700;color:var(--ink);}
+  .rekap-mini.abs-num.bad{color:var(--danger);font-weight:800;}
+  .abs-hist-row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--sage-line);}
+  .abs-hist-main{flex:1;min-width:0;}
+  .abs-date{font-size:13px;font-weight:800;color:var(--ink);}
+  .abs-chips{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-top:2px;}
+  .abs-chips .abs-late{font-weight:600;font-size:11px;}
+  .abs-who{font-size:11px;color:var(--ink-soft);margin-top:3px;line-height:1.5;}
   .qrekap-card{border:1px solid var(--sage-line);border-radius:12px;padding:10px 12px;margin-bottom:10px;background:var(--bg-elevated);}
   .qrekap-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .qrekap-head b{font-size:13.5px;}
