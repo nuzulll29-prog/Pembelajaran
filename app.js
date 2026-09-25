@@ -325,6 +325,17 @@ function applyDeltas(deltas, note, type, dateKey){
   return { touched, totalPositive };
 }
 
+// Hapus satu catatan poin: poin siswa disesuaikan kembali (dikurangi delta yang tadinya ditambahkan).
+function deleteLog(logId){
+  const idx = (state.logs||[]).findIndex(l=>l.id===logId);
+  if(idx<0) return;
+  const l = state.logs[idx];
+  const s = state.students.find(x=>x.id===l.studentId);
+  if(s) s.points = clamp((s.points||0) - l.delta, 0, 999999);
+  state.logs.splice(idx,1);
+  saveAndRender();
+}
+
 function kelasTotalPoin(){ return (state.students||[]).reduce((a,s)=>a+(s.points||0),0); }
 
 /* ---------------- CELEBRATION / TOAST ---------------- */
@@ -961,10 +972,11 @@ function openStudentDetail(id){
   const logs = state.logs.filter(l=>l.studentId===id).slice(0,20);
   const logRows = logs.map(l=>{
     const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
-    return `<div class="form-row">
+    return `<div class="form-row log-row">
       <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${a.icon}</div>
       <div class="fname">${a.label}${l.note?' · '+l.note:''}<div class="mini-note">${l.date}</div></div>
       <div style="font-weight:800;color:${l.delta>=0?'var(--gold-deep)':'var(--danger)'};font-size:13px;">${l.delta>=0?'+':''}${l.delta}</div>
+      <button type="button" class="icon-btn log-del-btn" data-del-log="${l.id}" title="Hapus poin ini">🗑️</button>
     </div>`;
   }).join('') || '<div class="empty-note">Belum ada riwayat.</div>';
 
@@ -995,6 +1007,14 @@ function openStudentDetail(id){
       <button class="qty-btn" id="detPlus" style="width:36px;height:36px;font-size:16px;">+5</button>
     </div>
   `);
+  document.querySelectorAll('[data-del-log]').forEach(btn=>{
+    btn.onclick = ()=>{
+      if(confirm('Hapus catatan poin ini? Poin siswa akan disesuaikan kembali.')){
+        deleteLog(btn.dataset.delLog);
+        openStudentDetail(id);
+      }
+    };
+  });
   document.getElementById('detPlus').onclick = ()=>{
     const {touched,totalPositive} = applyDeltas([{studentId:id, delta:5}], 'Tambahan cepat', 'poin');
     closeModal();
@@ -1020,7 +1040,7 @@ function studentRowsTemplate(renderRight){
 }
 
 function openActionModal(key){
-  if(key==='absensi') return openAbsensiModal();
+  if(key==='absensi') return openAbsensiModal(todayKey());
   if(key==='nilai') return openNilaiModal();
   if(key==='raport') return openRaportModal();
   if(key==='piket') return openPiketModal();
@@ -1052,6 +1072,7 @@ function openAbsensiModal(dateArg, onBack){
   const statuses = {};
   (state.students||[]).forEach(s=> statuses[s.id] = saved[s.id] || 'Hadir');
   const whenLabel = isToday ? 'Hari Ini' : fmtDateDay(dateKey);
+  const maxDate = todayKey();
 
   function cardsHtml(){
     return (state.students||[]).map((s,i)=>{
@@ -1069,17 +1090,26 @@ function openAbsensiModal(dateArg, onBack){
     }).join('');
   }
 
-  const footHtml = `<div style="display:flex;gap:8px;">
-    <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="absRekapBtn">${onBack ? '‹ Kembali' : '📊 Rekap'}</button>
-    <button class="save-btn" style="flex:2;" id="absSave">${isEdit ? 'Update Absensi' : 'Simpan Absensi'}</button>
-  </div>`;
+  const footBtns = [`<button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="absRekapBtn">${onBack ? '‹ Kembali' : '📊 Rekap'}</button>`];
+  if(isEdit) footBtns.push(`<button class="save-btn" style="flex:1;background:#F8E3DD;color:var(--danger);" id="absDeleteBtn">🗑️ Hapus</button>`);
+  footBtns.push(`<button class="save-btn" style="flex:2;" id="absSave">${isEdit ? 'Update Absensi' : 'Simpan Absensi'}</button>`);
+  const footHtml = `<div style="display:flex;gap:8px;">${footBtns.join('')}</div>`;
 
   openModal(`${isEdit ? 'Edit Absensi' : 'Absensi'} ${whenLabel}`, `
-    ${isEdit ? `<div class="jurnal-reminder"><span class="ic">📝</span><div><b>Mengedit absensi ${isToday ? 'hari ini' : 'tanggal ini'} yang sudah tersimpan.</b><p>Perubahan otomatis menyesuaikan poin yang sudah diberikan.</p></div></div>` : ''}
+    <div class="field-label">Tanggal</div>
+    <input type="date" class="text-input" id="absDateInput" value="${dateKey}" max="${maxDate}">
+    ${isEdit ? `<div class="jurnal-reminder"><span class="ic">📝</span><div><b>Mengedit absensi ${isToday ? 'hari ini' : 'tanggal ini'} yang sudah tersimpan.</b><p>Perubahan otomatis menyesuaikan poin yang sudah diberikan.</p></div></div>` : `<div class="mini-note" style="margin:-4px 2px 10px;">Belum ada absensi tersimpan untuk tanggal ini — isi lalu simpan.</div>`}
     <div class="absen-hint">👆 Ketuk avatar: Hadir → Telat → Sakit → Izin → Alpa</div>
     <div class="absen-hint" style="margin-top:-8px;">⏰ Telat = tetap hadir, tanpa tambahan poin</div>
     <div class="absen-grid" id="absGrid">${cardsHtml()}</div>
   `, footHtml);
+
+  document.getElementById('absDateInput').onchange = (e)=>{
+    const v = e.target.value;
+    if(!v) return;
+    if(v > maxDate){ showToast('Tidak bisa mengisi absensi untuk tanggal yang akan datang'); e.target.value = dateKey; return; }
+    openAbsensiModal(v, onBack);
+  };
 
   function bindTaps(){
     document.querySelectorAll('[data-absen-id]').forEach(card=>{
@@ -1112,6 +1142,24 @@ function openAbsensiModal(dateArg, onBack){
   document.getElementById('absRekapBtn').onclick = ()=>{
     if(onBack) onBack(); else openRekapAbsensiModal();
   };
+
+  if(isEdit){
+    document.getElementById('absDeleteBtn').onclick = ()=>{
+      if(!confirm(`Hapus seluruh absensi ${fmtDateDay(dateKey)}? Poin yang sudah diberikan untuk tanggal ini akan dikembalikan.`)) return;
+      const deltas = Object.entries(saved).map(([studentId,st])=>({studentId, delta: -(ABSEN_PTS[st]||0)}));
+      deltas.forEach(d=>{
+        if(!d.delta) return;
+        const s = state.students.find(x=>x.id===d.studentId);
+        if(s) s.points = clamp((s.points||0)+d.delta, 0, 999999);
+      });
+      // buang juga catatan poin absensi tanggal ini dari riwayat
+      state.logs = (state.logs||[]).filter(l=> !(l.type==='absensi' && l.date===dateKey));
+      delete state.absensi[dateKey];
+      saveAndRender();
+      showToast(`Absensi ${fmtDateDay(dateKey)} dihapus`);
+      if(onBack) onBack(); else closeModal();
+    };
+  }
 
   document.getElementById('absSave').onclick = ()=>{
     const deltas = Object.entries(statuses).map(([studentId,st])=>{
@@ -1214,13 +1262,17 @@ function openRekapAbsensiModal(initialPeriod){
         <button class="${period==='all'?'active':''}" data-abs-period="all">Semua</button>
       </div>
       ${absenRekapBodyHtml(period)}
-    `, `<button class="save-btn" id="absRekapCloseBtn">Tutup</button>`);
+    `, `<div style="display:flex;gap:8px;">
+        <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="absRekapAddBtn">🗓️ Isi Tanggal Lain</button>
+        <button class="save-btn" style="flex:1;" id="absRekapCloseBtn">Tutup</button>
+      </div>`);
     document.querySelectorAll('[data-abs-period]').forEach(btn=>{
       btn.onclick = ()=>{ period = btn.dataset.absPeriod; draw(); };
     });
     document.querySelectorAll('[data-abs-edit]').forEach(btn=>{
       btn.onclick = ()=> openAbsensiModal(btn.dataset.absEdit, ()=> openRekapAbsensiModal(period));
     });
+    document.getElementById('absRekapAddBtn').onclick = ()=> openAbsensiModal(todayKey(), ()=> openRekapAbsensiModal(period));
     document.getElementById('absRekapCloseBtn').onclick = closeModal;
   }
   draw();
@@ -1540,6 +1592,8 @@ const SURAH_LIST = [
   [111,"Al-Lahab","المسد"],[112,"Al-Ikhlas","الإخلاص"],[113,"Al-Falaq","الفلق"],[114,"An-Nas","الناس"],
 ];
 
+// Jumlah ayat tiap surat (indeks 0 = surat 1); total 6236. Dipakai untuk menampilkan rentang lintas surat.
+const SURAH_AYAT_COUNT = [7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
 // Awal tiap juz: [nomor surat, nomor ayat] — juz ke-N dimulai di JUZ_START[N-1] (cocok dengan data mushaf Madinah).
 const JUZ_START = [[1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,82],[6,111],[7,88],[8,41],[9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],[29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1]];
 // Juz tempat sebuah ayat berada.
@@ -1589,21 +1643,69 @@ function mushafChunks(from, to){
   return chunks;
 }
 
-function openMushafView(surah, from, to, onBack){
-  const found = SURAH_LIST.find(([n])=>String(n)===String(surah));
-  const surahName = found ? `${found[0]}. ${found[1]} <span class="mushaf-title-ar">${found[2]}</span>` : `Surat ${surah}`;
-  const endAyat = (to && to>from) ? to : from;
-  const ayatLabel = (endAyat>from) ? `${from}-${endAyat}` : `${from}`;
+// Batas ayat yang dirender sekaligus (tiap ayat = satu elemen), supaya rentang panjang lintas surat tidak berat.
+const MUSHAF_MAX_AYAT = 200;
+
+// endSurah (opsional): jika berbeda dari surah, rentang berjalan dari surah:from sampai endSurah:to
+// (surat di antaranya ditampilkan penuh). Tanpa endSurah, perilaku seperti biasa (satu surat).
+function openMushafView(surah, from, to, onBack, endSurah){
+  const multi = !!endSurah && String(endSurah)!==String(surah);
+  const surahNum = parseInt(surah,10);
+  const endNum = multi ? parseInt(endSurah,10) : surahNum;
+  const nameOf = n => { const f = SURAH_LIST.find(([x])=>x===n); return f ? f : null; };
+  const found = nameOf(surahNum);
+  const foundEnd = nameOf(endNum);
+
+  // Susun segmen [{surah, from, to}]
+  const segs = [];
+  let endAyat;
+  if(multi){
+    if(endNum < surahNum){ showToast('Surat batas akhir harus setelah surat awal'); return; }
+    const clampA = (n,a)=> Math.min(Math.max(1, a||1), SURAH_AYAT_COUNT[n-1] || (a||1));
+    const startA = clampA(surahNum, from);
+    endAyat = clampA(endNum, to);
+    segs.push({surah:surahNum, from:startA, to:SURAH_AYAT_COUNT[surahNum-1]});
+    for(let n=surahNum+1; n<endNum; n++) segs.push({surah:n, from:1, to:SURAH_AYAT_COUNT[n-1]});
+    segs.push({surah:endNum, from:1, to:endAyat});
+    from = startA;
+  } else {
+    endAyat = (to && to>from) ? to : from;
+    segs.push({surah:surahNum, from, to:endAyat});
+  }
+
+  // Ratakan menjadi daftar ayat, potong bila melebihi batas
+  const items = [];
+  let truncated = false;
+  segs.forEach((sg,si)=>{
+    for(let a=sg.from; a<=sg.to; a++){
+      if(items.length>=MUSHAF_MAX_AYAT){ truncated = true; return; }
+      items.push({surah:sg.surah, ayat:a, segStart:(a===sg.from && si>0)});
+    }
+  });
+
+  const surahName = !found ? `Surat ${surah}`
+    : multi && foundEnd ? `${found[0]}. ${found[1]} → ${foundEnd[0]}. ${foundEnd[1]}`
+    : `${found[0]}. ${found[1]} <span class="mushaf-title-ar">${found[2]}</span>`;
+  const ayatLabel = multi && foundEnd
+    ? `${found[1]} : ${from} → ${foundEnd[1]} : ${endAyat}`
+    : `Ayat ${(endAyat>from) ? `${from}-${endAyat}` : `${from}`}`;
   let zoom = (state.settings && state.settings.mushafZoom) || 1;
 
-  const chunksHtml = mushafChunks(from, endAyat).map(([a,b])=>{
-    const range = b>a ? `${a}-${b}` : `${a}`;
+  const chunksHtml = items.map((it, idx)=>{
+    const {surah:sn, ayat:a} = it;
+    const juzStart = juzStartingAt(sn, a);
+    let marker = '';
+    if(it.segStart){
+      const f = nameOf(sn);
+      marker += `<div class="mushaf-surah"><span>📖 ${f ? `${f[0]}. ${f[1]} · <b>${f[2]}</b>` : 'Surat '+sn}</span></div>`;
+    }
     // Penanda juz: di ayat pertama selalu tampil (juz-nya), dan di tengah rentang saat juz baru dimulai.
-    const juzStart = juzStartingAt(surah, a);
-    const marker = (a===from)
-      ? `<div class="mushaf-juz${juzStart?' start':''}"><span>${juzStart ? '🔖 Awal Juz '+juzStart : 'Juz '+juzOf(surah,a)}</span></div>`
-      : (juzStart ? `<div class="mushaf-juz start"><span>🔖 Awal Juz ${juzStart}</span></div>` : '');
-    return `${marker}<div class="mushaf-block"><quran-madina-html sura="${surah}" aya="${range}" headless="true"></quran-madina-html></div>`;
+    if(idx===0){
+      marker += `<div class="mushaf-juz${juzStart?' start':''}"><span>${juzStart ? '🔖 Awal Juz '+juzStart : 'Juz '+juzOf(sn,a)}</span></div>`;
+    } else if(juzStart){
+      marker += `<div class="mushaf-juz start"><span>🔖 Awal Juz ${juzStart}</span></div>`;
+    }
+    return `${marker}<div class="mushaf-block"><quran-madina-html sura="${sn}" aya="${a}" headless="true"></quran-madina-html></div>`;
   }).join('');
 
   openModal(surahName, `
@@ -1618,7 +1720,7 @@ function openMushafView(surah, from, to, onBack){
     <div class="mushaf-wrap">
       <div id="mushafContent" style="zoom:${zoom};">${chunksHtml}</div>
     </div>
-    <div class="mushaf-note">Ayat ${ayatLabel} — bisa dibaca offline setelah dibuka sekali saat ada internet</div>
+    <div class="mushaf-note">${ayatLabel}${truncated ? ` (ditampilkan ${MUSHAF_MAX_AYAT} ayat pertama)` : ''} — bisa dibaca offline setelah dibuka sekali saat ada internet</div>
   `, `<button class="save-btn" id="mushafBackBtn">‹ Kembali</button>`);
 
   document.getElementById('mushafBackBtn').onclick = ()=>{
@@ -1648,9 +1750,50 @@ function openMushafView(surah, from, to, onBack){
   };
 }
 
+// Pencarian surat: cari nama latin, arab, atau nomor, lalu pilih. onSelect(n) menyetel
+// nilai & menggambar ulang layar sebelumnya; onBack kembali tanpa mengubah apa pun.
+function openSurahPicker(selected, onSelect, onBack){
+  let q = '';
+  function listHtml(){
+    const query = q.trim().toLowerCase();
+    let html = '', cur = 0, any = false;
+    SURAH_LIST.forEach(([n,name,arab])=>{
+      if(query){
+        const hay = `${n} ${name} ${arab}`.toLowerCase();
+        if(!hay.includes(query)) return;
+      }
+      const j = juzOf(n,1);
+      if(j!==cur){ html += `<div class="sp-juz">Juz ${j}</div>`; cur = j; }
+      any = true;
+      html += `<div class="sp-item ${String(selected)===String(n)?'sel':''}" data-sp-pick="${n}">
+        <span class="sp-num">${n}</span><span class="sp-name">${name}</span><span class="sp-ar">${arab}</span>
+      </div>`;
+    });
+    return any ? html : '<div class="empty-note">Surat tidak ditemukan.</div>';
+  }
+  function bindItems(){
+    document.querySelectorAll('[data-sp-pick]').forEach(el=>{
+      el.onclick = ()=> onSelect(parseInt(el.dataset.spPick,10));
+    });
+  }
+  openModal('Pilih Surat', `
+    <input type="text" class="text-input sp-search" id="spSearch" placeholder="Cari nama surat, nomor, atau ayat arab…" autocomplete="off">
+    <div class="sp-list" id="spList">${listHtml()}</div>
+  `, '');
+  document.getElementById('modalCloseBtn').onclick = ()=>{ if(onBack) onBack(); else closeModal(); };
+  const inp = document.getElementById('spSearch');
+  inp.oninput = ()=>{ q = inp.value; document.getElementById('spList').innerHTML = listHtml(); bindItems(); };
+  inp.focus();
+  bindItems();
+}
+
 function openQuranModal(){
   let mode = 'darus'; // darus | murojaah
+  // Dikunci per mode (kunci `${mode}_${id}`) supaya berpindah tab Darus/Murojaah tidak
+  // membuat centang siswa "ikut tertukar" antar mode — tiap mode disimpan terpisah.
   const checked = {};
+  const savedLogId = {};
+  const savedDarusPos = {};
   // murojaah fields: sekarang juga punya surat tersendiri di batas akhir (bisa lintas surat)
   const murojaahEndSurah = {};
   // darus fields: batas akhir (surat + ayat) diisi guru; batas awal otomatis dari
@@ -1665,6 +1808,8 @@ function openQuranModal(){
   const surahSel = {};
   const ayatFrom = {};
 
+  const ck = id => `${mode}_${id}`;
+
   function isEditingStart(s){
     return editingStart[s.id] !== undefined ? editingStart[s.id] : !s.darusPos;
   }
@@ -1678,11 +1823,19 @@ function openQuranModal(){
     return { surah: s.darusPos.surah, ayat: s.darusPos.ayat };
   }
 
+  // Tombol pemilih surat (menggantikan <select> panjang) — menampilkan surat terpilih,
+  // dan membuka pencarian surat saat diketuk.
+  function surahPickBtn(dataKind, id, value, extraClass){
+    return `<button type="button" class="qr-select qr-picker-btn ${extraClass||''}" data-qpick="${dataKind}" data-qpick-id="${id}">
+      <span class="qr-picker-text">${value ? surahLabel(value) : 'Pilih Surat'}</span><span class="qr-picker-car">›</span>
+    </button>`;
+  }
+
   function darusRowFields(s){
     const editing = isEditingStart(s);
     const start = currentStart(s);
     const startBlock = editing ? `
-        <select class="qr-select qr-select-sm" data-qstartsurah="${s.id}">${surahOptionsHtml(start.surah)}</select>
+        ${surahPickBtn('dstart', s.id, start.surah, 'qr-select-sm')}
         <input type="number" min="1" class="qr-ayat qr-ayat-sm" placeholder="Ayat" data-qstartayat="${s.id}" value="${start.ayat||''}">
         ${s.darusPos ? `<button type="button" class="qr-mini-btn" data-qcancelstart="${s.id}">Batal</button>` : ''}
       ` : `
@@ -1693,7 +1846,7 @@ function openQuranModal(){
         <div class="qr-darus-start">${startBlock}</div>
         <div class="qr-end-label">Sampai (batas akhir)</div>
         <div class="qr-fields">
-          <select class="qr-select" data-qendsurah="${s.id}">${surahOptionsHtml(endSurah[s.id] || start.surah)}</select>
+          ${surahPickBtn('dend', s.id, endSurah[s.id] || start.surah)}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
         </div>`;
@@ -1702,27 +1855,56 @@ function openQuranModal(){
     return `
         <div class="qr-end-label">Dari</div>
         <div class="qr-fields">
-          <select class="qr-select" data-qsurah="${s.id}">${surahOptionsHtml(surahSel[s.id])}</select>
+          ${surahPickBtn('mfrom', s.id, surahSel[s.id])}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qfrom="${s.id}" value="${ayatFrom[s.id]||''}">
         </div>
         <div class="qr-end-label">Sampai (batas akhir)</div>
         <div class="qr-fields">
-          <select class="qr-select" data-qmendsurah="${s.id}">${surahOptionsHtml(murojaahEndSurah[s.id] || surahSel[s.id])}</select>
+          ${surahPickBtn('mend', s.id, murojaahEndSurah[s.id] || surahSel[s.id])}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
         </div>`;
   }
 
+  // Susun catatan + (utk darus) posisi darus baru dari isian saat ini. null jika belum
+  // lengkap (dan menampilkan toast) — dipakai saat centang diketuk supaya langsung tersimpan.
+  function buildEntry(s){
+    if(mode==='darus'){
+      const start = currentStart(s);
+      const end = endSurah[s.id] || start.surah;
+      const endAyat = parseInt(ayatTo[s.id],10) || null;
+      if(!start.surah || !end || !endAyat){
+        showToast('Lengkapi batas awal & batas akhir dulu untuk siswa ini');
+        return null;
+      }
+      return {
+        note: `Setoran: ${surahLabel(start.surah)}:${start.ayat} → ${surahLabel(end)}:${endAyat}`,
+        darusPos: { surah:end, ayat:endAyat },
+      };
+    }
+    const surah = surahSel[s.id];
+    const from = parseInt(ayatFrom[s.id],10) || 1;
+    const end = murojaahEndSurah[s.id] || surah;
+    const to = parseInt(ayatTo[s.id],10) || null;
+    if(!surah || !to){
+      showToast('Lengkapi surat & ayat dulu untuk siswa ini');
+      return null;
+    }
+    return { note: `Murojaah: ${surahLabel(surah)}:${from} → ${surahLabel(end)}:${to}` };
+  }
+
   function bodyHtml(){
     const rows = (state.students||[]).map((s,i)=>{
       const st = avatarStyle(s.avatarIdx ?? i);
+      const isChecked = !!checked[ck(s.id)];
+      const fields = mode==='darus' ? darusRowFields(s) : murojaahRowFields(s);
       return `<div class="quran-row">
         <div class="qr-top">
           <div class="av-sm" style="background:${st.bg}">${avatarOf(s)}</div>
-          <div class="fname" style="flex:1;">${s.name.split(' ')[0]}</div>
-          <button class="chk-box ${checked[s.id]?'on':''}" data-qchk="${s.id}">${checked[s.id]?'✓':''}</button>
+          <div class="fname" style="flex:1;">${s.name.split(' ')[0]}${isChecked ? ' <span class="qr-saved-tag">✅ Tersimpan</span>' : ''}</div>
+          <button class="chk-box ${isChecked?'on':''}" data-qchk="${s.id}">${isChecked?'✓':''}</button>
         </div>
-        ${mode==='darus' ? darusRowFields(s) : murojaahRowFields(s)}
+        <div class="${isChecked ? 'qr-locked' : ''}">${fields}</div>
       </div>`;
     }).join('');
     return `
@@ -1730,7 +1912,7 @@ function openQuranModal(){
         <button class="${mode==='darus'?'active':''}" data-qmode="darus">📖 Darus Qur'an</button>
         <button class="${mode==='murojaah'?'active':''}" data-qmode="murojaah">🔁 Murojaah</button>
       </div>
-      <div class="field-label">${mode==='darus' ? 'Batas awal otomatis lanjut dari darus terakhir — isi batas akhir, lalu centang siswa yang setor (+3 poin)' : 'Tentukan surat & ayat, lalu centang siswa yang setor (+3 poin)'}</div>
+      <div class="field-label">${mode==='darus' ? 'Batas awal otomatis lanjut dari darus terakhir — isi batas akhir lalu centang: langsung tersimpan (+3 poin)' : 'Tentukan surat & ayat lalu centang: langsung tersimpan (+3 poin)'}</div>
       <div id="qRows">${rows}</div>
     `;
   }
@@ -1739,24 +1921,28 @@ function openQuranModal(){
     openModal("Darus & Murojaah", bodyHtml(), `
       <div style="display:flex;gap:8px;">
         <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="qRekapBtn">📊 Rekap</button>
-        <button class="save-btn" style="flex:1;" id="qSave">Simpan ${mode==='darus'?'Darus':'Murojaah'}</button>
+        <button class="save-btn" style="flex:1;" id="qDoneBtn">Selesai</button>
       </div>
     `);
     document.getElementById('qRekapBtn').onclick = openQuranRekapModal;
+    document.getElementById('qDoneBtn').onclick = closeModal;
     document.querySelectorAll('[data-qmode]').forEach(btn=>{
       btn.onclick = ()=>{ mode = btn.dataset.qmode; draw(); };
     });
-    document.querySelectorAll('[data-qsurah]').forEach(sel=>{
-      sel.onchange = ()=>{ surahSel[sel.dataset.qsurah] = sel.value; };
-    });
-    document.querySelectorAll('[data-qendsurah]').forEach(sel=>{
-      sel.onchange = ()=>{ endSurah[sel.dataset.qendsurah] = sel.value; };
-    });
-    document.querySelectorAll('[data-qmendsurah]').forEach(sel=>{
-      sel.onchange = ()=>{ murojaahEndSurah[sel.dataset.qmendsurah] = sel.value; };
-    });
-    document.querySelectorAll('[data-qstartsurah]').forEach(sel=>{
-      sel.onchange = ()=>{ startSurah[sel.dataset.qstartsurah] = sel.value; };
+    document.querySelectorAll('[data-qpick]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const kind = btn.dataset.qpick, id = btn.dataset.qpickId;
+        const s = state.students.find(x=>x.id===id);
+        if(kind==='dstart'){
+          openSurahPicker(currentStart(s).surah, (n)=>{ startSurah[id]=n; draw(); }, draw);
+        } else if(kind==='dend'){
+          openSurahPicker(endSurah[id] || currentStart(s).surah, (n)=>{ endSurah[id]=n; draw(); }, draw);
+        } else if(kind==='mfrom'){
+          openSurahPicker(surahSel[id], (n)=>{ surahSel[id]=n; draw(); }, draw);
+        } else if(kind==='mend'){
+          openSurahPicker(murojaahEndSurah[id] || surahSel[id], (n)=>{ murojaahEndSurah[id]=n; draw(); }, draw);
+        }
+      };
     });
     document.querySelectorAll('[data-qstartayat]').forEach(inp=>{
       inp.oninput = ()=>{ startAyat[inp.dataset.qstartayat] = inp.value; };
@@ -1787,8 +1973,8 @@ function openQuranModal(){
           const end = endSurah[id] || start.surah;
           if(!start.surah){ showToast('Isi batas awal dulu untuk siswa ini'); return; }
           if(String(end)!==String(start.surah)){
-            showToast('Rentang melewati dua surat — menampilkan surat batas akhir saja');
-            openMushafView(end, parseInt(ayatTo[id],10)||1, 0, draw);
+            // lintas surat: dari surat awal sampai surat batas akhir
+            openMushafView(start.surah, parseInt(start.ayat,10)||1, parseInt(ayatTo[id],10)||1, draw, end);
           } else {
             openMushafView(start.surah, parseInt(start.ayat,10)||1, parseInt(ayatTo[id],10)||0, draw);
           }
@@ -1799,8 +1985,8 @@ function openQuranModal(){
           const from = parseInt(ayatFrom[id],10) || 1;
           const to = parseInt(ayatTo[id],10) || 0;
           if(String(end)!==String(surah)){
-            showToast('Rentang melewati dua surat — menampilkan surat batas akhir saja');
-            openMushafView(end, to||1, 0, draw);
+            // lintas surat: dari surat awal sampai surat batas akhir
+            openMushafView(surah, from, to||1, draw, end);
           } else {
             openMushafView(surah, from, to, draw);
           }
@@ -1810,43 +1996,35 @@ function openQuranModal(){
     document.querySelectorAll('[data-qchk]').forEach(btn=>{
       btn.onclick = ()=>{
         const id = btn.dataset.qchk;
-        checked[id] = !checked[id];
+        const s = state.students.find(x=>x.id===id);
+        if(!s) return;
+        const key = ck(id);
+        if(!checked[key]){
+          // Centang: validasi lalu langsung simpan (poin & catatan tersimpan seketika).
+          const entry = buildEntry(s);
+          if(!entry) return;
+          if(mode==='darus'){
+            savedDarusPos[key] = s.darusPos ? {...s.darusPos} : null;
+            s.darusPos = entry.darusPos;
+          }
+          applyDeltas([{studentId:id, delta:3}], entry.note, mode);
+          savedLogId[key] = state.logs[0].id;
+          checked[key] = true;
+          showToast(`⭐ +3 poin — ${s.name.split(' ')[0]} tersimpan`);
+        } else {
+          // Batalkan centang: hapus catatan poin tadi & kembalikan posisi darus jika ada.
+          if(savedLogId[key]){ deleteLog(savedLogId[key]); delete savedLogId[key]; }
+          if(mode==='darus'){
+            s.darusPos = savedDarusPos[key] || null;
+            delete savedDarusPos[key];
+            saveAndRender();
+          }
+          checked[key] = false;
+          showToast(`Dibatalkan — ${s.name.split(' ')[0]}`);
+        }
         draw();
       };
     });
-    document.getElementById('qSave').onclick = ()=>{
-      const ids = Object.keys(checked).filter(id=>checked[id]);
-      if(ids.length===0){ closeModal(); return; }
-      let totalPositive = 0;
-      let touched = [];
-      ids.forEach(id=>{
-        const s = state.students.find(x=>x.id===id);
-        if(!s) return;
-        let note;
-        if(mode==='darus'){
-          const start = currentStart(s);
-          const end = endSurah[id] || start.surah;
-          const endAyat = parseInt(ayatTo[id],10) || start.ayat || 1;
-          if(end && start.surah){
-            note = `Setoran: ${surahLabel(start.surah)}:${start.ayat} → ${surahLabel(end)}:${endAyat}`;
-            s.darusPos = { surah: end, ayat: endAyat };
-          } else {
-            note = 'Setoran bacaan';
-          }
-        } else {
-          const surah = surahSel[id];
-          const from = parseInt(ayatFrom[id],10) || 1;
-          const end = murojaahEndSurah[id] || surah;
-          const to = parseInt(ayatTo[id],10) || from;
-          note = surah ? `Murojaah: ${surahLabel(surah)}:${from} → ${surahLabel(end)}:${to}` : 'Murojaah hafalan';
-        }
-        const r = applyDeltas([{studentId:id, delta:3}], note, mode);
-        totalPositive += r.totalPositive;
-        touched = touched.concat(r.touched);
-      });
-      closeModal();
-      showCelebration(totalPositive, `${mode==='darus'?'Darus':'Murojaah'} tersimpan untuk ${ids.length} siswa.`, touched);
-    };
   }
   draw();
 }
@@ -2010,13 +2188,14 @@ function rekapBodyHtml(kind){
       }).join('')}</ul>
     </div>` : `<div class="rekap-ok-box">✅ Semua siswa aktif, poin positif & nilai baik pada ${r.label.toLowerCase()}.</div>`;
   const rows = sorted.map((p,i)=>`
-    <div class="rekap-row">
+    <div class="rekap-row rekap-row-click" data-rekap-student="${p.student.id}" title="Ketuk untuk lihat & kelola poin ${p.student.name.split(' ')[0]}">
       <div class="rekap-rank">${i+1}</div>
       <div class="rekap-name">${p.student.name.split(' ')[0]}</div>
       <div class="rekap-mini" title="Darus">📖${p.darusCount}</div>
       <div class="rekap-mini" title="Murojaah">🔁${p.murojaahCount}</div>
       <div class="rekap-mini" title="Rata-rata Nilai">📝${p.avgNilai ?? '—'}</div>
       <div class="rekap-total ${p.total<0?'neg':''}">${p.total>0?'+':''}${p.total}</div>
+      <span class="rekap-chev">›</span>
     </div>`).join('');
   return `
     <div class="field-label">${r.label} · ${fmtDateShort(r.start)}–${fmtDateShort(r.end)}</div>
@@ -2026,6 +2205,7 @@ function rekapBodyHtml(kind){
       <div class="rekap-mini">Darus</div><div class="rekap-mini">Muroj.</div><div class="rekap-mini">Nilai</div><div class="rekap-total">Poin</div>
     </div>
     ${rows || '<div class="empty-note">Belum ada data pada periode ini.</div>'}
+    <div class="mini-note" style="margin:8px 2px 0;">👆 Ketuk nama siswa untuk melihat & menghapus catatan poin.</div>
   `;
 }
 
@@ -2044,6 +2224,9 @@ function openRekapModal(){
       btn.onclick = ()=>{ period = btn.dataset.rekapPeriod; draw(); };
     });
     document.getElementById('rekapCloseBtn').onclick = closeModal;
+    document.querySelectorAll('[data-rekap-student]').forEach(row=>{
+      row.onclick = ()=> openStudentDetail(row.dataset.rekapStudent);
+    });
   }
   draw();
 }
