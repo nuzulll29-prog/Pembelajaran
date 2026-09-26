@@ -336,6 +336,17 @@ function deleteLog(logId){
   saveAndRender();
 }
 
+// Ubah satu catatan poin: poin siswa disesuaikan mengikuti selisih delta lama → baru.
+function editLog(logId, newDelta, newNote){
+  const l = (state.logs||[]).find(x=>x.id===logId);
+  if(!l) return;
+  const s = state.students.find(x=>x.id===l.studentId);
+  if(s) s.points = clamp((s.points||0) - l.delta + newDelta, 0, 999999);
+  l.delta = newDelta;
+  l.note = newNote;
+  saveAndRender();
+}
+
 function kelasTotalPoin(){ return (state.students||[]).reduce((a,s)=>a+(s.points||0),0); }
 
 /* ---------------- CELEBRATION / TOAST ---------------- */
@@ -465,6 +476,8 @@ function bindScreenEvents(){
   if(openAbsRekapBtn) openAbsRekapBtn.onclick = ()=> openRekapAbsensiModal();
   const openAbsRekapBtn2 = document.getElementById('openAbsRekapBtn2');
   if(openAbsRekapBtn2) openAbsRekapBtn2.onclick = ()=> openRekapAbsensiModal();
+  const openRekapPoinBtn = document.getElementById('openRekapPoinBtn');
+  if(openRekapPoinBtn) openRekapPoinBtn.onclick = ()=> openRekapPoinModal();
   const openQuranRekapBtn = document.getElementById('openQuranRekapBtn');
   if(openQuranRekapBtn) openQuranRekapBtn.onclick = openQuranRekapModal;
   const pengBackBtn = document.getElementById('pengBackBtn');
@@ -699,6 +712,11 @@ function renderPengaturan(){
       <div class="settings-row" id="openRekapBtn2">
         <span class="ic">📈</span>
         <div class="meta-col"><b>Rekap Perkembangan Siswa</b><span class="sub">Poin per minggu, bulan & semester</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="settings-row" id="openRekapPoinBtn">
+        <span class="ic">⭐</span>
+        <div class="meta-col"><b>Rekap Poin</b><span class="sub">Semua catatan poin — bisa diedit & dihapus</span></div>
         <span class="chev">›</span>
       </div>
       <div class="settings-row" id="openAbsRekapBtn2">
@@ -976,6 +994,7 @@ function openStudentDetail(id){
       <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${a.icon}</div>
       <div class="fname">${a.label}${l.note?' · '+l.note:''}<div class="mini-note">${l.date}</div></div>
       <div style="font-weight:800;color:${l.delta>=0?'var(--gold-deep)':'var(--danger)'};font-size:13px;">${l.delta>=0?'+':''}${l.delta}</div>
+      <button type="button" class="icon-btn" data-edit-log-det="${l.id}" title="Edit poin ini">✏️</button>
       <button type="button" class="icon-btn log-del-btn" data-del-log="${l.id}" title="Hapus poin ini">🗑️</button>
     </div>`;
   }).join('') || '<div class="empty-note">Belum ada riwayat.</div>';
@@ -1014,6 +1033,9 @@ function openStudentDetail(id){
         openStudentDetail(id);
       }
     };
+  });
+  document.querySelectorAll('[data-edit-log-det]').forEach(btn=>{
+    btn.onclick = ()=> openEditLogModal(btn.dataset.editLogDet, ()=> openStudentDetail(id));
   });
   document.getElementById('detPlus').onclick = ()=>{
     const {touched,totalPositive} = applyDeltas([{studentId:id, delta:5}], 'Tambahan cepat', 'poin');
@@ -1705,6 +1727,11 @@ function openMushafView(surah, from, to, onBack, endSurah){
     } else if(juzStart){
       marker += `<div class="mushaf-juz start"><span>🔖 Awal Juz ${juzStart}</span></div>`;
     }
+    // Basmalah di awal tiap surat (kecuali Al-Fatihah, karena basmalah sudah jadi ayat 1-nya,
+    // dan At-Taubah/surat 9, yang memang tidak diawali basmalah dalam mushaf).
+    if(a===1 && sn!==1 && sn!==9){
+      marker += `<div class="mushaf-basmalah">بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ</div>`;
+    }
     return `${marker}<div class="mushaf-block"><quran-madina-html sura="${sn}" aya="${a}" headless="true"></quran-madina-html></div>`;
   }).join('');
 
@@ -1807,8 +1834,22 @@ function openQuranModal(){
   // batas akhir (surat & ayat) tetap bisa beda surat dari batas awal.
   const surahSel = {};
   const ayatFrom = {};
+  // Catatan bacaan (opsional): kekurangan siswa saat setor — misalnya makhraj huruf
+  // tertentu atau ketepatan tajwid — supaya bisa dilihat lagi nanti di Rekap.
+  const catatan = {};
 
   const ck = id => `${mode}_${id}`;
+
+  // Cegah poin dobel: kalau siswa sudah punya catatan darus/murojaah HARI INI (dari sesi
+  // manapun, termasuk sebelum modal ini dibuka), tandai baris itu sebagai sudah tersimpan
+  // sejak awal — bukan cuma selama modal ini terbuka — supaya tidak bisa dicentang dua kali
+  // untuk hari yang sama walau modalnya ditutup-buka lagi.
+  (state.students||[]).forEach(s=>{
+    ['darus','murojaah'].forEach(m=>{
+      const log = (state.logs||[]).find(l=> l.studentId===s.id && l.type===m && l.date===todayKey());
+      if(log){ checked[`${m}_${s.id}`] = true; savedLogId[`${m}_${s.id}`] = log.id; }
+    });
+  });
 
   function isEditingStart(s){
     return editingStart[s.id] !== undefined ? editingStart[s.id] : !s.darusPos;
@@ -1849,7 +1890,9 @@ function openQuranModal(){
           ${surahPickBtn('dend', s.id, endSurah[s.id] || start.surah)}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
-        </div>`;
+        </div>
+        <div class="qr-end-label">Catatan bacaan (opsional)</div>
+        <textarea class="text-input qr-note" rows="2" placeholder="Contoh: makhraj ح/خ masih tertukar, panjang-pendek mad kurang pas" data-qnote="${s.id}">${catatan[s.id]||''}</textarea>`;
   }
   function murojaahRowFields(s){
     return `
@@ -1863,7 +1906,9 @@ function openQuranModal(){
           ${surahPickBtn('mend', s.id, murojaahEndSurah[s.id] || surahSel[s.id])}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
-        </div>`;
+        </div>
+        <div class="qr-end-label">Catatan bacaan (opsional)</div>
+        <textarea class="text-input qr-note" rows="2" placeholder="Contoh: makhraj ح/خ masih tertukar, panjang-pendek mad kurang pas" data-qnote="${s.id}">${catatan[s.id]||''}</textarea>`;
   }
 
   // Susun catatan + (utk darus) posisi darus baru dari isian saat ini. null jika belum
@@ -1877,8 +1922,9 @@ function openQuranModal(){
         showToast('Lengkapi batas awal & batas akhir dulu untuk siswa ini');
         return null;
       }
+      const noteExtra = (catatan[s.id]||'').trim();
       return {
-        note: `Setoran: ${surahLabel(start.surah)}:${start.ayat} → ${surahLabel(end)}:${endAyat}`,
+        note: `Setoran: ${surahLabel(start.surah)}:${start.ayat} → ${surahLabel(end)}:${endAyat}`+(noteExtra?` · Catatan: ${noteExtra}`:''),
         darusPos: { surah:end, ayat:endAyat },
       };
     }
@@ -1890,7 +1936,8 @@ function openQuranModal(){
       showToast('Lengkapi surat & ayat dulu untuk siswa ini');
       return null;
     }
-    return { note: `Murojaah: ${surahLabel(surah)}:${from} → ${surahLabel(end)}:${to}` };
+    const noteExtra2 = (catatan[s.id]||'').trim();
+    return { note: `Murojaah: ${surahLabel(surah)}:${from} → ${surahLabel(end)}:${to}`+(noteExtra2?` · Catatan: ${noteExtra2}`:'') };
   }
 
   function bodyHtml(){
@@ -1953,6 +2000,9 @@ function openQuranModal(){
     document.querySelectorAll('[data-qto]').forEach(inp=>{
       inp.oninput = ()=>{ ayatTo[inp.dataset.qto] = inp.value; };
     });
+    document.querySelectorAll('[data-qnote]').forEach(inp=>{
+      inp.oninput = ()=>{ catatan[inp.dataset.qnote] = inp.value; };
+    });
     document.querySelectorAll('[data-qeditstart]').forEach(btn=>{
       btn.onclick = ()=>{ editingStart[btn.dataset.qeditstart] = true; draw(); };
     });
@@ -2012,10 +2062,13 @@ function openQuranModal(){
           checked[key] = true;
           showToast(`⭐ +3 poin — ${s.name.split(' ')[0]} tersimpan`);
         } else {
-          // Batalkan centang: hapus catatan poin tadi & kembalikan posisi darus jika ada.
+          // Batalkan centang: hapus catatan poin tadi. Posisi darus hanya dikembalikan kalau
+          // catatan ini dibuat pada sesi/modal ini juga (posisi sebelumnya tercatat) — kalau
+          // catatan itu peninggalan sebelumnya (sebelum modal dibuka), posisi darus dibiarkan
+          // apa adanya karena posisi sebelum catatan itu tidak tersimpan di mana pun.
           if(savedLogId[key]){ deleteLog(savedLogId[key]); delete savedLogId[key]; }
-          if(mode==='darus'){
-            s.darusPos = savedDarusPos[key] || null;
+          if(mode==='darus' && savedDarusPos.hasOwnProperty(key)){
+            s.darusPos = savedDarusPos[key];
             delete savedDarusPos[key];
             saveAndRender();
           }
@@ -2227,6 +2280,106 @@ function openRekapModal(){
     document.querySelectorAll('[data-rekap-student]').forEach(row=>{
       row.onclick = ()=> openStudentDetail(row.dataset.rekapStudent);
     });
+  }
+  draw();
+}
+
+/* --- REKAP POIN (semua catatan poin, lintas siswa — bisa diedit & dihapus dari sini) --- */
+function openEditLogModal(logId, onBack){
+  const l = (state.logs||[]).find(x=>x.id===logId);
+  if(!l){ if(onBack) onBack(); else closeModal(); return; }
+  const s = state.students.find(x=>x.id===l.studentId);
+  const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
+  openModal(`Edit Catatan Poin`, `
+    <div class="field-label">Siswa</div>
+    <input class="text-input" value="${s ? s.name : '—'} · ${a.label}" disabled>
+    <div class="field-label">Tanggal</div>
+    <input class="text-input" value="${fmtDateShort(l.date)}" disabled>
+    <div class="field-label">Catatan</div>
+    <input class="text-input" id="elNote" value="${(l.note||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}">
+    <div class="field-label">Poin (boleh negatif utk pengurangan)</div>
+    <input type="number" class="text-input" id="elDelta" value="${l.delta}">
+  `, `<div style="display:flex;gap:8px;">
+      <button class="save-btn" style="flex:1;background:#F8E3DD;color:var(--danger);" id="elDeleteBtn">🗑️ Hapus</button>
+      <button class="save-btn" style="flex:1;" id="elSaveBtn">Simpan</button>
+    </div>`);
+  document.getElementById('elSaveBtn').onclick = ()=>{
+    const newDelta = parseInt(document.getElementById('elDelta').value,10);
+    if(Number.isNaN(newDelta)){ showToast('Isi poin dengan angka'); return; }
+    const newNote = document.getElementById('elNote').value.trim();
+    editLog(logId, newDelta, newNote);
+    showToast('Catatan poin diperbarui');
+    if(onBack) onBack(); else closeModal();
+  };
+  document.getElementById('elDeleteBtn').onclick = ()=>{
+    if(!confirm('Hapus catatan poin ini? Poin siswa akan disesuaikan kembali.')) return;
+    deleteLog(logId);
+    showToast('Catatan poin dihapus');
+    if(onBack) onBack(); else closeModal();
+  };
+}
+
+function openRekapPoinModal(initialPeriod){
+  let period = initialPeriod || 'week';
+  let typeFilter = 'all'; // all | poin | darus | murojaah | absensi
+  function rows(){
+    const {start, end} = periodRange(period);
+    const nameById = {};
+    (state.students||[]).forEach(s=> nameById[s.id] = s.name.split(' ')[0]);
+    return (state.logs||[])
+      .filter(l=> l.date>=start && l.date<=end && nameById[l.studentId])
+      .filter(l=> typeFilter==='all' || l.type===typeFilter)
+      .sort((a,b)=> b.ts-a.ts);
+  }
+  function draw(){
+    const list = rows();
+    const rowsHtml = list.map(l=>{
+      const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
+      const nm = (state.students.find(s=>s.id===l.studentId)||{}).name || '—';
+      return `<div class="form-row log-row">
+        <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${a.icon}</div>
+        <div class="fname">${nm.split(' ')[0]} · ${a.label}${l.note?' · '+l.note:''}<div class="mini-note">${fmtDateShort(l.date)}</div></div>
+        <div style="font-weight:800;color:${l.delta>=0?'var(--gold-deep)':'var(--danger)'};font-size:13px;">${l.delta>=0?'+':''}${l.delta}</div>
+        <button type="button" class="icon-btn" data-edit-log="${l.id}" title="Edit">✏️</button>
+        <button type="button" class="icon-btn log-del-btn" data-del-log2="${l.id}" title="Hapus">🗑️</button>
+      </div>`;
+    }).join('') || '<div class="empty-note">Belum ada catatan poin pada periode ini.</div>';
+
+    openModal('Rekap Poin', `
+      <div class="tab-toggle">
+        <button class="${period==='week'?'active':''}" data-rp-period="week">Mingguan</button>
+        <button class="${period==='month'?'active':''}" data-rp-period="month">Bulanan</button>
+        <button class="${period==='semester'?'active':''}" data-rp-period="semester">Semester</button>
+        <button class="${period==='all'?'active':''}" data-rp-period="all">Semua</button>
+      </div>
+      <div class="tab-toggle" style="margin-top:6px;">
+        <button class="${typeFilter==='all'?'active':''}" data-rp-type="all">Semua</button>
+        <button class="${typeFilter==='poin'?'active':''}" data-rp-type="poin">Manual</button>
+        <button class="${typeFilter==='darus'?'active':''}" data-rp-type="darus">Darus</button>
+        <button class="${typeFilter==='murojaah'?'active':''}" data-rp-type="murojaah">Murojaah</button>
+        <button class="${typeFilter==='absensi'?'active':''}" data-rp-type="absensi">Absensi</button>
+      </div>
+      <div class="mini-note" style="margin:8px 2px;">👆 Ketuk ✏️ untuk ubah poin/catatan, 🗑️ untuk hapus.</div>
+      ${rowsHtml}
+    `, `<button class="save-btn" id="rpCloseBtn">Tutup</button>`);
+    document.querySelectorAll('[data-rp-period]').forEach(btn=>{
+      btn.onclick = ()=>{ period = btn.dataset.rpPeriod; draw(); };
+    });
+    document.querySelectorAll('[data-rp-type]').forEach(btn=>{
+      btn.onclick = ()=>{ typeFilter = btn.dataset.rpType; draw(); };
+    });
+    document.querySelectorAll('[data-edit-log]').forEach(btn=>{
+      btn.onclick = ()=> openEditLogModal(btn.dataset.editLog, ()=> openRekapPoinModal(period));
+    });
+    document.querySelectorAll('[data-del-log2]').forEach(btn=>{
+      btn.onclick = ()=>{
+        if(confirm('Hapus catatan poin ini? Poin siswa akan disesuaikan kembali.')){
+          deleteLog(btn.dataset.delLog2);
+          draw();
+        }
+      };
+    });
+    document.getElementById('rpCloseBtn').onclick = closeModal;
   }
   draw();
 }
