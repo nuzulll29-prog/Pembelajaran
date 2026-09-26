@@ -1,8 +1,13 @@
 // Kelas Madin — service worker
-// Precaches the app shell + the mushaf reader's core assets on install, then uses a
-// cache-first (network-fallback, background-refresh) strategy for everything else —
-// so any surah a teacher has opened once keeps working with no internet afterwards.
-const CACHE_NAME = 'kelas-madin-v10';
+// Dua cache terpisah:
+//  - APP_CACHE (ikut versi, `kelas-madin-vN`): file aplikasi (html/css/js/ikon). Dibersihkan
+//    setiap update supaya aplikasi selalu pakai versi terbaru.
+//  - QURAN_CACHE (nama tetap, TIDAK ikut naik versi): data mushaf per juz/halaman yang
+//    diunduh saat surat dibuka. Sengaja tidak pernah dihapus saat update aplikasi, supaya
+//    surat yang sudah pernah dibuka tetap tersedia offline — guru tidak perlu unduh ulang
+//    Al-Qur'an hanya karena ada pembaruan aplikasi.
+const CACHE_NAME = 'kelas-madin-v12';
+const QURAN_CACHE = 'kelas-madin-quran-data';
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,21 +22,31 @@ const APP_SHELL = [
   './vendor/quran-madina-html/dist/quran-madina-html.min.js',
   './vendor/quran-madina-html/dist/quran-madina-html.min.css',
   './vendor/quran-madina-html/assets/fonts/Hafs.woff2',
+];
+// Data mushaf (dasar): daftar surat/juz + font sizing. Diprakuat ke QURAN_CACHE (bukan
+// APP_SHELL) supaya tidak pernah ikut terhapus saat versi aplikasi naik.
+const QURAN_SHELL = [
   './vendor/quran-madina-html/assets/db/Madina05-Hafs-16px/manifest.json',
 ];
+// Request yang termasuk "data mushaf" (per juz/halaman) dan harus disimpan permanen.
+function isQuranDataRequest(url){
+  return url.pathname.includes('/vendor/quran-madina-html/assets/db/');
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
+    Promise.all([
+      caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)),
+      caches.open(QURAN_CACHE).then((cache) => cache.addAll(QURAN_SHELL)),
+    ]).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      // Hapus cache lama, TAPI selalu sisakan QURAN_CACHE apa pun nama versi APP_CACHE saat ini.
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== QURAN_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -41,15 +56,17 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   // Only handle same-origin requests (our own app + vendored mushaf assets);
   // let everything else (e.g. Google Fonts) go straight to the network as normal.
-  if (new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
 
+  const cacheName = isQuranDataRequest(url) ? QURAN_CACHE : CACHE_NAME;
   event.respondWith(
     caches.match(req).then((cached) => {
       const networkFetch = fetch(req)
         .then((res) => {
           if (res && res.status === 200) {
             const resClone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+            caches.open(cacheName).then((cache) => cache.put(req, resClone));
           }
           return res;
         })
