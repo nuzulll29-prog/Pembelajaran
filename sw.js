@@ -6,7 +6,7 @@
 //    diunduh saat surat dibuka. Sengaja tidak pernah dihapus saat update aplikasi, supaya
 //    surat yang sudah pernah dibuka tetap tersedia offline — guru tidak perlu unduh ulang
 //    Al-Qur'an hanya karena ada pembaruan aplikasi.
-const CACHE_NAME = 'kelas-madin-v16';
+const CACHE_NAME = 'kelas-madin-v17';
 const QURAN_CACHE = 'kelas-madin-quran-data';
 const APP_SHELL = [
   './',
