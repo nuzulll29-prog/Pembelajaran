@@ -89,6 +89,9 @@ const LOG_META = {
   nilai:{ label:'Nilai Harian', icon:'✏️' },
   ujian:{ label:'Ujian', icon:'📝' },
 };
+function logMeta(type){
+  return LOG_META[type] || {icon:'⭐', label:'Poin'};
+}
 const DAYS = ['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 const MATERI_ICONS = ['📗','📘','📙','🕋','🤲','📜'];
 function uid(){ return Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
@@ -453,12 +456,24 @@ function bindScreenEvents(){
   if(notif) notif.onclick = openTodayLog;
   const jurnalNoteBanner = document.getElementById('jurnalNoteBanner');
   if(jurnalNoteBanner) jurnalNoteBanner.onclick = openJurnalModal;
+  const summaryMapelRow = document.getElementById('summaryMapelRow');
+  if(summaryMapelRow) summaryMapelRow.onclick = ()=> openJadwalModal(todayHariKey());
+  const summaryPiketRow = document.getElementById('summaryPiketRow');
+  if(summaryPiketRow) summaryPiketRow.onclick = openPiketModal;
   const addSiswaBtn = document.getElementById('addSiswaBtn');
   if(addSiswaBtn) addSiswaBtn.onclick = openAddStudent;
   const addMateriBtn = document.getElementById('addMateriBtn');
   if(addMateriBtn) addMateriBtn.onclick = openAddMateri;
   document.querySelectorAll('[data-materi-toggle]').forEach(el=>{
     el.onclick = ()=> toggleMateriDone(el.dataset.materiToggle);
+  });
+  document.querySelectorAll('[data-materi-del]').forEach(el=>{
+    el.onclick = ()=>{
+      if(confirm('Hapus materi ini dari daftar?')){
+        state.materi = (state.materi||[]).filter(m=>m.id!==el.dataset.materiDel);
+        saveAndRender();
+      }
+    };
   });
   document.querySelectorAll('[data-edit-siswa]').forEach(el=>{
     el.onclick = (e)=>{ e.stopPropagation(); openEditStudent(el.dataset.editSiswa); };
@@ -491,7 +506,8 @@ function bindScreenEvents(){
   const editAturanPoinBtn = document.getElementById('editAturanPoinBtn');
   if(editAturanPoinBtn) editAturanPoinBtn.onclick = openAturanPoinModal;
   const goMateriBtn = document.getElementById('goMateriBtn');
-  if(goMateriBtn) goMateriBtn.onclick = ()=>{ activeTab='materi'; render(); };
+  if(goMateriBtn) goMateriBtn.onclick = openMateriKelolaModal;
+
   const resetBtn = document.getElementById('resetDataBtn');
   if(resetBtn) resetBtn.onclick = ()=>{
     if(confirm('Reset semua data kelas? Tindakan ini tidak bisa dibatalkan.')){
@@ -508,6 +524,38 @@ function renderBeranda(){
   const todayStudentIds = [...new Set(todayLogs.map(l=>l.studentId))];
   const lastJurnal = [...(state.jurnal||[])].sort((a,b)=> b.date.localeCompare(a.date))[0];
   const showJurnalReminder = lastJurnal && lastJurnal.catatan && lastJurnal.date !== todayKey();
+
+  // Ringkasan hari ini: mata pelajaran terjadwal & siapa yang piket, supaya langsung
+  // terlihat begitu buka aplikasi tanpa harus masuk ke menu Pengaturan dulu.
+  const isLibur = dayName()==='Minggu';
+  const mapelHariIni = (state.jadwalPelajaran||{})[todayHariKey()] || [];
+  const mapelText = isLibur ? 'Hari libur (Ahad)'
+    : mapelHariIni.length ? mapelHariIni.map(m=> m.jam ? `${m.mapel} (${m.jam})` : m.mapel).join(' · ')
+    : 'Belum ada jadwal pelajaran hari ini';
+  const piketIds = isLibur ? [] : ((state.piket||{})[dayName()] || []);
+  const piketNames = piketIds.map(id=>{ const st=students.find(x=>x.id===id); return st ? st.name.split(' ')[0] : null; }).filter(Boolean);
+  const piketText = isLibur ? 'Libur, tidak ada piket'
+    : piketNames.length ? piketNames.join(', ')
+    : 'Belum ada petugas piket hari ini';
+
+  const todaySummaryHtml = `
+    <div class="today-summary">
+      <div class="today-summary-head">
+        <span class="ic">🗓️</span>
+        <div><b>${fmtDateFull(todayKey())}</b><span class="sub">Ringkasan hari ini</span></div>
+      </div>
+      <div class="today-summary-row" id="summaryMapelRow">
+        <span class="ts-ic">📚</span>
+        <div class="ts-txt"><b>Mata Pelajaran</b><span>${mapelText}</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="today-summary-row" id="summaryPiketRow">
+        <span class="ts-ic">🧹</span>
+        <div class="ts-txt"><b>Piket Hari Ini</b><span>${piketText}</span></div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+  `;
 
   const quick = Object.entries(ACTIONS).map(([key,a])=>`
     <button class="quick-btn" data-action="${key}">
@@ -532,6 +580,7 @@ function renderBeranda(){
   }).join('');
 
   return `
+    ${todaySummaryHtml}
     <div class="beranda-scene">
       <div class="section-title on-scene">Siswa <span class="sub">${students.length} anak</span></div>
       <div class="student-grid">${cards || '<div class="empty-note">Belum ada siswa. Tambahkan di tab Profil.</div>'}</div>
@@ -558,7 +607,7 @@ function openTodayLog(){
   const todayLogs = state.logs.filter(l=>l.date===todayKey());
   const rows = todayLogs.map(l=>{
     const s = state.students.find(x=>x.id===l.studentId);
-    const a = LOG_META[l.type] || {icon:'⭐',label:'Poin'};
+    const a = logMeta(l.type);
     return `<div class="form-row">
       <div class="av-sm" style="background:var(--sage-soft)">${s?avatarOf(s):'?'}</div>
       <div class="fname">${s?s.name.split(' ')[0]:'—'}<div class="mini-note">${a.icon} ${a.label}${l.note?' · '+l.note:''}</div></div>
@@ -569,18 +618,49 @@ function openTodayLog(){
 }
 
 /* ---------------- MATERI TAB ---------------- */
+// Kitab/kategori yang disarankan saat menambah materi — termasuk kitab kuning yang dipakai di
+// kelas (Mabadi'ul Fiqhiyyah, Durusul 'Aqoidu Diniyyah) selain kategori bawaan. Isi bab per
+// kitab diketik sendiri oleh guru (dari kitab cetak masing-masing), bukan ditulis otomatis di
+// sini, supaya persis mengikuti edisi/terjemah yang dipakai di kelas itu.
+const KITAB_SUGGEST = ["Mabadi'ul Fiqhiyyah", "Durusul 'Aqoidu Diniyyah", 'Baca Al-Quran', 'Tajwid', "Do'a Harian", 'Akhlak', 'Fiqih Ibadah', 'Kisah Nabi'];
+function materiSuggestions(){
+  const existing = [...new Set((state.materi||[]).map(m=>m.category).filter(Boolean))];
+  return [...new Set([...KITAB_SUGGEST, ...existing])];
+}
+function materiChipsHtml(suggestions){
+  return `<div class="chip-row">${suggestions.map(c=>`<button type="button" class="chip-btn" data-cat-chip="${c.replace(/"/g,'&quot;')}">${c}</button>`).join('')}</div>`;
+}
+function bindMateriChips(inputId){
+  document.querySelectorAll('[data-cat-chip]').forEach(btn=>{
+    btn.onclick = ()=>{ document.getElementById(inputId).value = btn.dataset.catChip; };
+  });
+}
+
 function renderMateri(){
   const items = state.materi||[];
-  const rows = items.map((m,i)=>`
-    <div class="materi-item">
-      <div class="materi-ic">${MATERI_ICONS[i % MATERI_ICONS.length]}</div>
-      <div class="materi-info"><b>${m.title}</b><span>${m.category}</span></div>
-      <button class="materi-done-btn ${m.done?'done':''}" data-materi-toggle="${m.id}">${m.done?'✓ Selesai':'Tandai Selesai'}</button>
-    </div>`).join('');
+  // Dikelompokkan per kitab/kategori — supaya tiap kitab kuning (atau kategori lain) terlihat
+  // sebagai daftar bab tersendiri lengkap dengan progres "sudah diajarkan", mirip pelacakan
+  // darus Qur'an.
+  const cats = [...new Set(items.map(m=>m.category||'Umum'))];
+  const groups = cats.map(cat=>{
+    const list = items.filter(m=>(m.category||'Umum')===cat);
+    const doneCount = list.filter(m=>m.done).length;
+    const rows = list.map((m,i)=>`
+      <div class="materi-item">
+        <div class="materi-ic">${MATERI_ICONS[i % MATERI_ICONS.length]}</div>
+        <div class="materi-info"><b>${m.title}</b></div>
+        <button class="materi-done-btn ${m.done?'done':''}" data-materi-toggle="${m.id}">${m.done?'✓ Selesai':'Tandai Selesai'}</button>
+        <button class="icon-btn danger materi-del-btn" data-materi-del="${m.id}" title="Hapus materi">🗑</button>
+      </div>`).join('');
+    return `<div class="materi-kitab-group">
+      <div class="materi-kitab-head"><b>${cat}</b><span>${doneCount}/${list.length} selesai</span></div>
+      ${rows}
+    </div>`;
+  }).join('');
   return `
-    <div class="section-title">Materi Pembelajaran <span class="sub">${items.length} materi</span></div>
-    ${rows}
-    <button class="add-materi-btn" id="addMateriBtn">+ Tambah Materi</button>
+    <div class="section-title">Materi Pembelajaran &amp; Kitab <span class="sub">${items.length} materi</span></div>
+    ${groups || `<div class="empty-note">Belum ada materi. Tambahkan di bawah — misalnya bab pertama dari Mabadi'ul Fiqhiyyah atau Durusul 'Aqoidu Diniyyah.</div>`}
+    <button class="add-materi-btn" id="addMateriBtn">+ Tambah Materi / Bab Kitab</button>
   `;
 }
 
@@ -600,11 +680,13 @@ function toggleMateriDone(id){
 
 function openAddMateri(){
   openModal('Tambah Materi', `
-    <div class="field-label">Judul Materi</div>
-    <input class="text-input" id="mTitle" placeholder="Contoh: Hafalan Surat An-Nas" />
-    <div class="field-label">Kategori</div>
-    <input class="text-input" id="mCat" placeholder="Contoh: Tahfidz" />
+    <div class="field-label">Judul Materi / Bab</div>
+    <input class="text-input" id="mTitle" placeholder="Contoh: Bab 1 - Pengertian Fiqih" />
+    <div class="field-label">Kitab / Kategori</div>
+    <input class="text-input" id="mCat" placeholder="Contoh: Mabadi'ul Fiqhiyyah" />
+    ${materiChipsHtml(materiSuggestions())}
   `, `<button class="save-btn" id="mSaveBtn">Simpan Materi</button>`);
+  bindMateriChips('mCat');
   document.getElementById('mSaveBtn').onclick = ()=>{
     const title = document.getElementById('mTitle').value.trim();
     const cat = document.getElementById('mCat').value.trim() || 'Umum';
@@ -793,6 +875,55 @@ function openMapelModal(){
   draw();
 }
 
+function openMateriKelolaModal(){
+  function rows(){
+    const items = state.materi||[];
+    const cats = [...new Set(items.map(m=>m.category||'Umum'))];
+    return cats.map(cat=>{
+      const list = items.filter(m=>(m.category||'Umum')===cat);
+      const doneCount = list.filter(m=>m.done).length;
+      const itemRows = list.map(m=>`
+        <div class="siswa-row">
+          <div class="meta"><b>${m.title}</b>${m.done?'<span>✓ Sudah diajarkan</span>':''}</div>
+          <button class="icon-btn danger" data-del-materi2="${m.id}">🗑</button>
+        </div>`).join('');
+      return `<div class="materi-kitab-group">
+        <div class="materi-kitab-head"><b>${cat}</b><span>${doneCount}/${list.length} selesai</span></div>
+        ${itemRows}
+      </div>`;
+    }).join('') || '<div class="empty-note">Belum ada materi.</div>';
+  }
+  function draw(){
+    openModal('Kelola Materi Pembelajaran', `
+      <div id="materiRows2">${rows()}</div>
+      <div class="field-label">Judul Materi / Bab</div>
+      <input class="text-input" id="materiNewTitle" placeholder="Contoh: Bab 1 - Pengertian Fiqih" />
+      <div class="field-label">Kitab / Kategori</div>
+      <input class="text-input" id="materiNewCat" placeholder="Contoh: Mabadi'ul Fiqhiyyah" />
+      ${materiChipsHtml(materiSuggestions())}
+    `, `<button class="save-btn" id="materiAddBtn2">+ Tambah Materi</button>`);
+    bindMateriChips('materiNewCat');
+    document.querySelectorAll('[data-del-materi2]').forEach(btn=>{
+      btn.onclick = ()=>{
+        if(!confirm('Hapus materi ini dari daftar?')) return;
+        state.materi = (state.materi||[]).filter(m=>m.id!==btn.dataset.delMateri2);
+        saveAndRender();
+        draw();
+      };
+    });
+    document.getElementById('materiAddBtn2').onclick = ()=>{
+      const title = document.getElementById('materiNewTitle').value.trim();
+      const cat = document.getElementById('materiNewCat').value.trim() || 'Umum';
+      if(!title) return;
+      state.materi = state.materi || [];
+      state.materi.push({id:uid(), title, category:cat, done:false});
+      saveAndRender();
+      draw();
+    };
+  }
+  draw();
+}
+
 function openAturanPoinModal(){
   function rows(){
     return (state.aturanPoin||[]).map((r,i)=>`
@@ -806,8 +937,11 @@ function openAturanPoinModal(){
       <div id="aturanRows">${rows()}</div>
       <div class="field-label">Nama Aturan</div>
       <input class="text-input" id="aturanLabel" placeholder="Contoh: Hafalan Lancar" />
-      <div class="field-label">Nilai Poin (isi minus untuk pengurangan, mis. -3)</div>
-      <input class="text-input" id="aturanNilai" type="number" placeholder="Contoh: 5 atau -3" />
+      <div class="field-label">Nilai Poin (boleh minus untuk pengurangan)</div>
+      <div class="sign-field">
+        <button type="button" class="sign-toggle" id="aturanSign" data-sign="1">+</button>
+        <input class="text-input" id="aturanNilai" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Contoh: 5">
+      </div>
     `, `<button class="save-btn" id="aturanAddBtn">+ Tambah Aturan</button>`);
     document.querySelectorAll('[data-del-aturan]').forEach(btn=>{
       btn.onclick = ()=>{
@@ -816,10 +950,19 @@ function openAturanPoinModal(){
         draw();
       };
     });
+    const signBtn = document.getElementById('aturanSign');
+    signBtn.onclick = ()=>{
+      const neg = signBtn.dataset.sign==='1';
+      signBtn.dataset.sign = neg ? '-1' : '1';
+      signBtn.textContent = neg ? '−' : '+';
+      signBtn.classList.toggle('neg', neg);
+    };
     document.getElementById('aturanAddBtn').onclick = ()=>{
       const label = document.getElementById('aturanLabel').value.trim();
-      const nilai = parseInt(document.getElementById('aturanNilai').value,10);
-      if(!label || isNaN(nilai) || nilai===0) return;
+      const digits = parseInt(document.getElementById('aturanNilai').value,10);
+      const sign = parseInt(signBtn.dataset.sign,10);
+      if(!label || isNaN(digits) || digits===0) return;
+      const nilai = digits * sign;
       state.aturanPoin = state.aturanPoin || [];
       state.aturanPoin.push({id:uid(), label, poin:nilai});
       saveAndRender();
@@ -829,8 +972,8 @@ function openAturanPoinModal(){
   draw();
 }
 
-function openJadwalModal(){
-  let selectedDay = HARI_LIST[0];
+function openJadwalModal(initialDay){
+  let selectedDay = HARI_LIST.includes(initialDay) ? initialDay : HARI_LIST[0];
   function itemsHtml(){
     const list = state.jadwalPelajaran[selectedDay] || [];
     return list.map((it,i)=>`
@@ -989,10 +1132,10 @@ function openStudentDetail(id){
   const st = avatarStyle(s.avatarIdx ?? 0);
   const logs = state.logs.filter(l=>l.studentId===id).slice(0,20);
   const logRows = logs.map(l=>{
-    const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
+    const a = logMeta(l.type);
     return `<div class="form-row log-row">
       <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${a.icon}</div>
-      <div class="fname">${a.label}${l.note?' · '+l.note:''}<div class="mini-note">${l.date}</div></div>
+      <div class="fname">${a.label}${l.note?' · '+l.note:''}<div class="mini-note">${fmtDateShort(l.date)}</div></div>
       <div style="font-weight:800;color:${l.delta>=0?'var(--gold-deep)':'var(--danger)'};font-size:13px;">${l.delta>=0?'+':''}${l.delta}</div>
       <button type="button" class="icon-btn" data-edit-log-det="${l.id}" title="Edit poin ini">✏️</button>
       <button type="button" class="icon-btn log-del-btn" data-del-log="${l.id}" title="Hapus poin ini">🗑️</button>
@@ -1083,6 +1226,10 @@ const ABSEN_META = {
   Alpa:{icon:'❌', label:'Alpa', chip:'var(--red-soft)'},
 };
 function fmtDateDay(key){ return parseLocalDate(key).toLocaleDateString('id-ID',{weekday:'short',day:'numeric',month:'short'}); }
+function fmtDateFull(key){ return parseLocalDate(key).toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }
+// HARI_LIST memakai 'Ahad', sedangkan dayName() memakai 'Minggu' untuk hari yang sama — helper
+// ini menyamakannya supaya pencarian jadwal hari ini konsisten.
+function todayHariKey(){ const d=dayName(); return d==='Minggu' ? 'Ahad' : d; }
 
 // dateArg (opsional): tanggal 'YYYY-MM-DD' yang diedit; kosong = hari ini.
 // onBack (opsional): dipanggil saat kembali/selesai (dipakai saat dibuka dari Rekap Absensi).
@@ -1195,10 +1342,11 @@ function openAbsensiModal(dateArg, onBack){
     state.absensi[dateKey] = {...statuses};
     const note = `Absensi${isToday ? '' : ' '+fmtDateShort(dateKey)}${isEdit ? ' (diperbarui)' : ''}`;
     const {touched,totalPositive} = applyDeltas(deltas, note, 'absensi', dateKey);
-    if(onBack) onBack(); else closeModal();
     showCelebration(totalPositive,
       `Absensi ${isEdit ? 'diperbarui' : 'tersimpan'}! ${hadirCount} siswa hadir${telatCount ? ` (${telatCount} telat)` : ''} ${isToday ? 'hari ini' : 'pada '+fmtDateDay(dateKey)}.`,
       touched);
+    // Setelah tersimpan, langsung tampilkan rekapnya juga — guru tidak perlu ketuk Rekap manual.
+    if(onBack) onBack(); else openRekapAbsensiModal();
   };
 }
 
@@ -1307,10 +1455,14 @@ function latestJurnalBefore(dateKey){
   return list.sort((a,b)=> b.date.localeCompare(a.date))[0];
 }
 
-function openJurnalModal(){
-  const today = todayKey();
-  let existing = (state.jurnal||[]).find(j=>j.date===today);
-  const prev = latestJurnalBefore(today);
+// dateArg (opsional): tanggal 'YYYY-MM-DD' yang dibuka; kosong = hari ini. onBack (opsional):
+// dipanggil setelah simpan/batal (dipakai saat dibuka dari Riwayat Jurnal supaya kembali ke sana).
+function openJurnalModal(dateArg, onBack){
+  const dateKey = (typeof dateArg==='string' && dateArg) ? dateArg : todayKey();
+  const isToday = dateKey===todayKey();
+  const maxDate = todayKey();
+  let existing = (state.jurnal||[]).find(j=>j.date===dateKey);
+  const prev = latestJurnalBefore(dateKey);
 
   function draw(){
     const reminderHtml = (prev && prev.catatan) ? `
@@ -1318,36 +1470,44 @@ function openJurnalModal(){
         <span class="ic">📌</span>
         <div><b>Catatan pertemuan lalu (${fmtDateShort(prev.date)}):</b><p>${prev.catatan.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</p></div>
       </div>` : '';
-    openModal('Jurnal Pembelajaran', `
+    openModal(`Jurnal Pembelajaran${isToday ? '' : ' · '+fmtDateShort(dateKey)}`, `
       ${reminderHtml}
       <div class="field-label">Tanggal</div>
-      <input class="text-input" value="${fmtDateShort(today)}" disabled />
-      <div class="field-label">Materi yang Diajarkan Hari Ini</div>
+      <input type="date" class="text-input" id="jDateInput" value="${dateKey}" max="${maxDate}">
+      <div class="field-label">Materi yang Diajarkan${isToday?' Hari Ini':''}</div>
       <textarea class="text-input" id="jMateri" rows="3" placeholder="Contoh: Tajwid - hukum nun sukun & tanwin">${(existing?.materi||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
       <div class="field-label">Catatan untuk Pertemuan Berikutnya</div>
       <textarea class="text-input" id="jCatatan" rows="3" placeholder="Contoh: Lanjutkan latihan makhraj huruf, PR belum semua selesai">${(existing?.catatan||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>
     `, `
       <div style="display:flex;gap:8px;">
-        <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="jHistoryBtn">📖 Riwayat</button>
+        <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="jHistoryBtn">${onBack ? '‹ Kembali' : '📖 Riwayat'}</button>
         <button class="save-btn" style="flex:1;" id="jSave">Simpan Jurnal</button>
       </div>
     `);
-    document.getElementById('jHistoryBtn').onclick = openJurnalHistoryModal;
+    document.getElementById('jDateInput').onchange = (e)=>{
+      const v = e.target.value;
+      if(!v) return;
+      if(v > maxDate){ showToast('Tidak bisa membuat jurnal untuk tanggal yang akan datang'); e.target.value = dateKey; return; }
+      openJurnalModal(v, onBack);
+    };
+    document.getElementById('jHistoryBtn').onclick = ()=>{
+      if(onBack) onBack(); else openJurnalHistoryModal();
+    };
     document.getElementById('jSave').onclick = ()=>{
       const materi = document.getElementById('jMateri').value.trim();
       const catatan = document.getElementById('jCatatan').value.trim();
-      if(!materi && !catatan){ closeModal(); return; }
+      if(!materi && !catatan){ if(onBack) onBack(); else closeModal(); return; }
       state.jurnal = state.jurnal || [];
       if(existing){
         existing.materi = materi;
         existing.catatan = catatan;
       } else {
-        existing = {id:uid(), date:today, materi, catatan, createdAt:Date.now()};
+        existing = {id:uid(), date:dateKey, materi, catatan, createdAt:Date.now()};
         state.jurnal.push(existing);
       }
       saveAndRender();
-      closeModal();
       showToast('Jurnal pembelajaran tersimpan');
+      if(onBack) onBack(); else closeModal();
     };
   }
   draw();
@@ -1361,6 +1521,8 @@ function openJurnalHistoryModal(){
       <div class="jurnal-card">
         <div class="jurnal-card-head">
           <b>${fmtDateShort(j.date)}</b>
+          <span style="flex:1;"></span>
+          <button class="icon-btn" data-edit-jurnal="${j.date}" title="Edit">✏️</button>
           <button class="icon-btn danger" data-del-jurnal="${j.id}">🗑</button>
         </div>
         ${j.materi ? `<div class="jurnal-field"><span>📗 Materi:</span> ${j.materi.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>` : ''}
@@ -1368,7 +1530,10 @@ function openJurnalHistoryModal(){
       </div>`).join('');
   }
   function draw(){
-    openModal('Riwayat Jurnal', `<div id="jurnalHistRows">${rows()}</div>`, `<button class="save-btn" id="jHistClose">Tutup</button>`);
+    openModal('Riwayat Jurnal', `<div id="jurnalHistRows">${rows()}</div>`, `<div style="display:flex;gap:8px;">
+        <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="jHistAddBtn">🗓️ Isi Tanggal Lain</button>
+        <button class="save-btn" style="flex:1;" id="jHistClose">Tutup</button>
+      </div>`);
     document.querySelectorAll('[data-del-jurnal]').forEach(btn=>{
       btn.onclick = ()=>{
         state.jurnal = (state.jurnal||[]).filter(j=>j.id!==btn.dataset.delJurnal);
@@ -1376,6 +1541,10 @@ function openJurnalHistoryModal(){
         draw();
       };
     });
+    document.querySelectorAll('[data-edit-jurnal]').forEach(btn=>{
+      btn.onclick = ()=> openJurnalModal(btn.dataset.editJurnal, draw);
+    });
+    document.getElementById('jHistAddBtn').onclick = ()=> openJurnalModal(todayKey(), draw);
     document.getElementById('jHistClose').onclick = closeModal;
   }
   draw();
@@ -1830,13 +1999,18 @@ function openQuranModal(){
   const editingStart = {};
   const startSurah = {};
   const startAyat = {};
-  // murojaah: "Dari" diisi manual tiap kali (tidak ikut auto-lanjut seperti darus) —
-  // batas akhir (surat & ayat) tetap bisa beda surat dari batas awal.
-  const surahSel = {};
-  const ayatFrom = {};
+  // murojaah: batas awal SEKARANG otomatis lanjut dari murojaah terakhir (s.muroPos),
+  // sama persis seperti darus — kecuali sedang diedit manual.
+  const editingMuroStart = {};
+  const startMuroSurah = {};
+  const startMuroAyat = {};
+  const savedMuroPos = {};
   // Catatan bacaan (opsional): kekurangan siswa saat setor — misalnya makhraj huruf
   // tertentu atau ketepatan tajwid — supaya bisa dilihat lagi nanti di Rekap.
   const catatan = {};
+  // Dipakai supaya posisi scroll tidak melompat ke atas setiap kali layar digambar ulang
+  // (misalnya setelah memilih surat dari pencarian, atau mencentang salah satu siswa).
+  let pendingScroll = null;
 
   const ck = id => `${mode}_${id}`;
 
@@ -1862,6 +2036,18 @@ function openQuranModal(){
       };
     }
     return { surah: s.darusPos.surah, ayat: s.darusPos.ayat };
+  }
+  function isEditingMuroStart(s){
+    return editingMuroStart[s.id] !== undefined ? editingMuroStart[s.id] : !s.muroPos;
+  }
+  function currentMuroStart(s){
+    if(isEditingMuroStart(s)){
+      return {
+        surah: startMuroSurah[s.id] !== undefined ? startMuroSurah[s.id] : (s.muroPos ? s.muroPos.surah : ''),
+        ayat: startMuroAyat[s.id] !== undefined ? startMuroAyat[s.id] : (s.muroPos ? s.muroPos.ayat : 1),
+      };
+    }
+    return { surah: s.muroPos.surah, ayat: s.muroPos.ayat };
   }
 
   // Tombol pemilih surat (menggantikan <select> panjang) — menampilkan surat terpilih,
@@ -1895,15 +2081,21 @@ function openQuranModal(){
         <textarea class="text-input qr-note" rows="2" placeholder="Contoh: makhraj ح/خ masih tertukar, panjang-pendek mad kurang pas" data-qnote="${s.id}">${catatan[s.id]||''}</textarea>`;
   }
   function murojaahRowFields(s){
+    const editing = isEditingMuroStart(s);
+    const start = currentMuroStart(s);
+    const startBlock = editing ? `
+        ${surahPickBtn('mstart', s.id, start.surah, 'qr-select-sm')}
+        <input type="number" min="1" class="qr-ayat qr-ayat-sm" placeholder="Ayat" data-qmstartayat="${s.id}" value="${start.ayat||''}">
+        ${s.muroPos ? `<button type="button" class="qr-mini-btn" data-qcancelmustart="${s.id}">Batal</button>` : ''}
+      ` : `
+        <span class="qr-start-label">▶ Mulai: <b>${surahLabel(s.muroPos.surah)} : ${s.muroPos.ayat}</b></span>
+        <button type="button" class="qr-mini-btn" data-qeditmustart="${s.id}">Ubah</button>
+      `;
     return `
-        <div class="qr-end-label">Dari</div>
-        <div class="qr-fields">
-          ${surahPickBtn('mfrom', s.id, surahSel[s.id])}
-          <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qfrom="${s.id}" value="${ayatFrom[s.id]||''}">
-        </div>
+        <div class="qr-darus-start">${startBlock}</div>
         <div class="qr-end-label">Sampai (batas akhir)</div>
         <div class="qr-fields">
-          ${surahPickBtn('mend', s.id, murojaahEndSurah[s.id] || surahSel[s.id])}
+          ${surahPickBtn('mend', s.id, murojaahEndSurah[s.id] || start.surah)}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
         </div>
@@ -1928,16 +2120,18 @@ function openQuranModal(){
         darusPos: { surah:end, ayat:endAyat },
       };
     }
-    const surah = surahSel[s.id];
-    const from = parseInt(ayatFrom[s.id],10) || 1;
-    const end = murojaahEndSurah[s.id] || surah;
+    const start = currentMuroStart(s);
+    const end = murojaahEndSurah[s.id] || start.surah;
     const to = parseInt(ayatTo[s.id],10) || null;
-    if(!surah || !to){
-      showToast('Lengkapi surat & ayat dulu untuk siswa ini');
+    if(!start.surah || !end || !to){
+      showToast('Lengkapi batas awal & batas akhir dulu untuk siswa ini');
       return null;
     }
     const noteExtra2 = (catatan[s.id]||'').trim();
-    return { note: `Murojaah: ${surahLabel(surah)}:${from} → ${surahLabel(end)}:${to}`+(noteExtra2?` · Catatan: ${noteExtra2}`:'') };
+    return {
+      note: `Murojaah: ${surahLabel(start.surah)}:${start.ayat} → ${surahLabel(end)}:${to}`+(noteExtra2?` · Catatan: ${noteExtra2}`:''),
+      muroPos: { surah:end, ayat:to },
+    };
   }
 
   function bodyHtml(){
@@ -1959,18 +2153,27 @@ function openQuranModal(){
         <button class="${mode==='darus'?'active':''}" data-qmode="darus">📖 Darus Qur'an</button>
         <button class="${mode==='murojaah'?'active':''}" data-qmode="murojaah">🔁 Murojaah</button>
       </div>
-      <div class="field-label">${mode==='darus' ? 'Batas awal otomatis lanjut dari darus terakhir — isi batas akhir lalu centang: langsung tersimpan (+3 poin)' : 'Tentukan surat & ayat lalu centang: langsung tersimpan (+3 poin)'}</div>
+      <div class="qr-date-row">📅 ${fmtDateFull(todayKey())}</div>
+      <div class="field-label">${mode==='darus' ? 'Batas awal otomatis lanjut dari darus terakhir' : 'Batas awal otomatis lanjut dari murojaah terakhir'} — isi batas akhir lalu centang: langsung tersimpan (+3 poin)</div>
       <div id="qRows">${rows}</div>
     `;
   }
 
   function draw(){
+    // Posisi scroll SEBELUM digambar ulang: pakai nilai yang sengaja disimpan (mis. sebelum
+    // membuka pencarian surat) kalau ada, kalau tidak pakai posisi scroll modal yang sedang
+    // tampil saat ini (mis. redraw langsung dari centang/ubah-batas-awal).
+    const liveBody = document.querySelector('.modal-body');
+    const scrollToRestore = pendingScroll !== null ? pendingScroll : (liveBody ? liveBody.scrollTop : 0);
+    pendingScroll = null;
     openModal("Darus & Murojaah", bodyHtml(), `
       <div style="display:flex;gap:8px;">
         <button class="save-btn" style="flex:1;background:var(--sage-soft);color:var(--accent);" id="qRekapBtn">📊 Rekap</button>
         <button class="save-btn" style="flex:1;" id="qDoneBtn">Selesai</button>
       </div>
     `);
+    const newBody = document.querySelector('.modal-body');
+    if(newBody) newBody.scrollTop = scrollToRestore;
     document.getElementById('qRekapBtn').onclick = openQuranRekapModal;
     document.getElementById('qDoneBtn').onclick = closeModal;
     document.querySelectorAll('[data-qmode]').forEach(btn=>{
@@ -1978,24 +2181,28 @@ function openQuranModal(){
     });
     document.querySelectorAll('[data-qpick]').forEach(btn=>{
       btn.onclick = ()=>{
+        // Simpan dulu posisi scroll saat ini (baris siswa yang sedang dikerjakan), supaya
+        // begitu kembali dari layar pencarian surat, layar tidak melompat ke atas lagi.
+        const body = document.querySelector('.modal-body');
+        pendingScroll = body ? body.scrollTop : 0;
         const kind = btn.dataset.qpick, id = btn.dataset.qpickId;
         const s = state.students.find(x=>x.id===id);
         if(kind==='dstart'){
           openSurahPicker(currentStart(s).surah, (n)=>{ startSurah[id]=n; draw(); }, draw);
         } else if(kind==='dend'){
           openSurahPicker(endSurah[id] || currentStart(s).surah, (n)=>{ endSurah[id]=n; draw(); }, draw);
-        } else if(kind==='mfrom'){
-          openSurahPicker(surahSel[id], (n)=>{ surahSel[id]=n; draw(); }, draw);
+        } else if(kind==='mstart'){
+          openSurahPicker(currentMuroStart(s).surah, (n)=>{ startMuroSurah[id]=n; draw(); }, draw);
         } else if(kind==='mend'){
-          openSurahPicker(murojaahEndSurah[id] || surahSel[id], (n)=>{ murojaahEndSurah[id]=n; draw(); }, draw);
+          openSurahPicker(murojaahEndSurah[id] || currentMuroStart(s).surah, (n)=>{ murojaahEndSurah[id]=n; draw(); }, draw);
         }
       };
     });
     document.querySelectorAll('[data-qstartayat]').forEach(inp=>{
       inp.oninput = ()=>{ startAyat[inp.dataset.qstartayat] = inp.value; };
     });
-    document.querySelectorAll('[data-qfrom]').forEach(inp=>{
-      inp.oninput = ()=>{ ayatFrom[inp.dataset.qfrom] = inp.value; };
+    document.querySelectorAll('[data-qmstartayat]').forEach(inp=>{
+      inp.oninput = ()=>{ startMuroAyat[inp.dataset.qmstartayat] = inp.value; };
     });
     document.querySelectorAll('[data-qto]').forEach(inp=>{
       inp.oninput = ()=>{ ayatTo[inp.dataset.qto] = inp.value; };
@@ -2014,6 +2221,17 @@ function openQuranModal(){
         draw();
       };
     });
+    document.querySelectorAll('[data-qeditmustart]').forEach(btn=>{
+      btn.onclick = ()=>{ editingMuroStart[btn.dataset.qeditmustart] = true; draw(); };
+    });
+    document.querySelectorAll('[data-qcancelmustart]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const id = btn.dataset.qcancelmustart;
+        editingMuroStart[id] = false;
+        delete startMuroSurah[id]; delete startMuroAyat[id];
+        draw();
+      };
+    });
     document.querySelectorAll('[data-qopen]').forEach(btn=>{
       btn.onclick = ()=>{
         const id = btn.dataset.qopen;
@@ -2029,16 +2247,14 @@ function openQuranModal(){
             openMushafView(start.surah, parseInt(start.ayat,10)||1, parseInt(ayatTo[id],10)||0, draw);
           }
         } else {
-          const surah = surahSel[id];
-          const end = murojaahEndSurah[id] || surah;
-          if(!surah){ showToast('Pilih surat dulu untuk siswa ini'); return; }
-          const from = parseInt(ayatFrom[id],10) || 1;
-          const to = parseInt(ayatTo[id],10) || 0;
-          if(String(end)!==String(surah)){
+          const start = currentMuroStart(s);
+          const end = murojaahEndSurah[id] || start.surah;
+          if(!start.surah){ showToast('Isi batas awal dulu untuk siswa ini'); return; }
+          if(String(end)!==String(start.surah)){
             // lintas surat: dari surat awal sampai surat batas akhir
-            openMushafView(surah, from, to||1, draw, end);
+            openMushafView(start.surah, parseInt(start.ayat,10)||1, parseInt(ayatTo[id],10)||1, draw, end);
           } else {
-            openMushafView(surah, from, to, draw);
+            openMushafView(start.surah, parseInt(start.ayat,10)||1, parseInt(ayatTo[id],10)||0, draw);
           }
         }
       };
@@ -2056,20 +2272,27 @@ function openQuranModal(){
           if(mode==='darus'){
             savedDarusPos[key] = s.darusPos ? {...s.darusPos} : null;
             s.darusPos = entry.darusPos;
+          } else if(mode==='murojaah'){
+            savedMuroPos[key] = s.muroPos ? {...s.muroPos} : null;
+            s.muroPos = entry.muroPos;
           }
           applyDeltas([{studentId:id, delta:3}], entry.note, mode);
           savedLogId[key] = state.logs[0].id;
           checked[key] = true;
           showToast(`⭐ +3 poin — ${s.name.split(' ')[0]} tersimpan`);
         } else {
-          // Batalkan centang: hapus catatan poin tadi. Posisi darus hanya dikembalikan kalau
-          // catatan ini dibuat pada sesi/modal ini juga (posisi sebelumnya tercatat) — kalau
-          // catatan itu peninggalan sebelumnya (sebelum modal dibuka), posisi darus dibiarkan
+          // Batalkan centang: hapus catatan poin tadi. Posisi darus/murojaah hanya dikembalikan
+          // kalau catatan ini dibuat pada sesi/modal ini juga (posisi sebelumnya tercatat) —
+          // kalau catatan itu peninggalan sebelumnya (sebelum modal dibuka), posisinya dibiarkan
           // apa adanya karena posisi sebelum catatan itu tidak tersimpan di mana pun.
           if(savedLogId[key]){ deleteLog(savedLogId[key]); delete savedLogId[key]; }
           if(mode==='darus' && savedDarusPos.hasOwnProperty(key)){
             s.darusPos = savedDarusPos[key];
             delete savedDarusPos[key];
+            saveAndRender();
+          } else if(mode==='murojaah' && savedMuroPos.hasOwnProperty(key)){
+            s.muroPos = savedMuroPos[key];
+            delete savedMuroPos[key];
             saveAndRender();
           }
           checked[key] = false;
@@ -2289,7 +2512,7 @@ function openEditLogModal(logId, onBack){
   const l = (state.logs||[]).find(x=>x.id===logId);
   if(!l){ if(onBack) onBack(); else closeModal(); return; }
   const s = state.students.find(x=>x.id===l.studentId);
-  const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
+  const a = logMeta(l.type);
   openModal(`Edit Catatan Poin`, `
     <div class="field-label">Siswa</div>
     <input class="text-input" value="${s ? s.name : '—'} · ${a.label}" disabled>
@@ -2298,14 +2521,25 @@ function openEditLogModal(logId, onBack){
     <div class="field-label">Catatan</div>
     <input class="text-input" id="elNote" value="${(l.note||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}">
     <div class="field-label">Poin (boleh negatif utk pengurangan)</div>
-    <input type="number" class="text-input" id="elDelta" value="${l.delta}">
+    <div class="sign-field">
+      <button type="button" class="sign-toggle ${l.delta<0?'neg':''}" id="elSign" data-sign="${l.delta<0?'-1':'1'}">${l.delta<0?'−':'+'}</button>
+      <input class="text-input" id="elDelta" type="text" inputmode="numeric" pattern="[0-9]*" value="${Math.abs(l.delta)}">
+    </div>
   `, `<div style="display:flex;gap:8px;">
       <button class="save-btn" style="flex:1;background:#F8E3DD;color:var(--danger);" id="elDeleteBtn">🗑️ Hapus</button>
       <button class="save-btn" style="flex:1;" id="elSaveBtn">Simpan</button>
     </div>`);
+  const elSign = document.getElementById('elSign');
+  elSign.onclick = ()=>{
+    const neg = elSign.dataset.sign==='1';
+    elSign.dataset.sign = neg ? '-1' : '1';
+    elSign.textContent = neg ? '−' : '+';
+    elSign.classList.toggle('neg', neg);
+  };
   document.getElementById('elSaveBtn').onclick = ()=>{
-    const newDelta = parseInt(document.getElementById('elDelta').value,10);
-    if(Number.isNaN(newDelta)){ showToast('Isi poin dengan angka'); return; }
+    const digits = parseInt(document.getElementById('elDelta').value,10);
+    if(Number.isNaN(digits)){ showToast('Isi poin dengan angka'); return; }
+    const newDelta = digits * parseInt(elSign.dataset.sign,10);
     const newNote = document.getElementById('elNote').value.trim();
     editLog(logId, newDelta, newNote);
     showToast('Catatan poin diperbarui');
@@ -2334,7 +2568,7 @@ function openRekapPoinModal(initialPeriod){
   function draw(){
     const list = rows();
     const rowsHtml = list.map(l=>{
-      const a = LOG_META[l.type] || {icon:'⭐', label:'Poin'};
+      const a = logMeta(l.type);
       const nm = (state.students.find(s=>s.id===l.studentId)||{}).name || '—';
       return `<div class="form-row log-row">
         <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${a.icon}</div>
@@ -2392,7 +2626,7 @@ function computeQuranRecap(kind){
     const sLogs = logs.filter(l=>l.studentId===s.id).sort((a,b)=>b.ts-a.ts);
     const darusCount = sLogs.filter(l=>l.type==='darus').length;
     const murojaahCount = sLogs.filter(l=>l.type==='murojaah').length;
-    return { student:s, darusCount, murojaahCount, recent: sLogs.slice(0,3), darusPos: s.darusPos||null };
+    return { student:s, darusCount, murojaahCount, recent: sLogs.slice(0,3), darusPos: s.darusPos||null, muroPos: s.muroPos||null };
   });
   return { start, end, label, perStudent };
 }
@@ -2402,6 +2636,7 @@ function quranRekapBodyHtml(kind){
   const sorted = [...r.perStudent].sort((a,b)=> (b.darusCount+b.murojaahCount) - (a.darusCount+a.murojaahCount));
   const rows = sorted.map(p=>{
     const posLabel = p.darusPos ? `${surahLabel(p.darusPos.surah)} : ${p.darusPos.ayat}` : '—';
+    const muroPosLabel = p.muroPos ? `${surahLabel(p.muroPos.surah)} : ${p.muroPos.ayat}` : '—';
     const recentHtml = p.recent.length ? p.recent.map(l=>`
       <div class="qrekap-log"><span class="qrekap-date">${fmtDateShort(l.date)}</span><span>${l.note||(l.type==='darus'?'Setoran bacaan':'Murojaah hafalan')}</span></div>
     `).join('') : '<div class="empty-note" style="margin:2px 0;">Belum ada setoran pada periode ini.</div>';
@@ -2415,6 +2650,7 @@ function quranRekapBodyHtml(kind){
           </div>
         </div>
         <div class="qrekap-pos">Posisi darus terakhir: <b>${posLabel}</b></div>
+        <div class="qrekap-pos">Posisi murojaah terakhir: <b>${muroPosLabel}</b></div>
         ${recentHtml}
       </div>`;
   }).join('');
