@@ -493,6 +493,8 @@ function bindScreenEvents(){
   if(openAbsRekapBtn2) openAbsRekapBtn2.onclick = ()=> openRekapAbsensiModal();
   const openRekapPoinBtn = document.getElementById('openRekapPoinBtn');
   if(openRekapPoinBtn) openRekapPoinBtn.onclick = ()=> openRekapPoinModal();
+  const openRekapNilaiBtn = document.getElementById('openRekapNilaiBtn');
+  if(openRekapNilaiBtn) openRekapNilaiBtn.onclick = ()=> openRekapNilaiModal();
   const openQuranRekapBtn = document.getElementById('openQuranRekapBtn');
   if(openQuranRekapBtn) openQuranRekapBtn.onclick = openQuranRekapModal;
   const pengBackBtn = document.getElementById('pengBackBtn');
@@ -799,6 +801,11 @@ function renderPengaturan(){
       <div class="settings-row" id="openRekapPoinBtn">
         <span class="ic">⭐</span>
         <div class="meta-col"><b>Rekap Poin</b><span class="sub">Semua catatan poin — bisa diedit & dihapus</span></div>
+        <span class="chev">›</span>
+      </div>
+      <div class="settings-row" id="openRekapNilaiBtn">
+        <span class="ic">📝</span>
+        <div class="meta-col"><b>Rekap Nilai</b><span class="sub">Nilai harian & ujian tiap mapel — bisa diedit & dihapus</span></div>
         <span class="chev">›</span>
       </div>
       <div class="settings-row" id="openAbsRekapBtn2">
@@ -1687,6 +1694,123 @@ function openRaportModal(){
       closeModal();
       showToast(`Nilai Raport "${mapel}" tersimpan untuk ${rows.length} siswa.`);
     };
+  }
+  draw();
+}
+
+/* --- REKAP NILAI (semua nilai harian & ujian, lintas siswa & mapel — bisa diedit & dihapus) --- */
+function openEditNilaiModal(gradeId, onBack){
+  const g = (state.grades||[]).find(x=>x.id===gradeId);
+  if(!g){ if(onBack) onBack(); else closeModal(); return; }
+  const s = state.students.find(x=>x.id===g.studentId);
+  openModal('Edit Nilai', `
+    <div class="field-label">Siswa</div>
+    <input class="text-input" value="${s ? s.name : '—'}" disabled>
+    <div class="field-label">Tanggal</div>
+    <input class="text-input" value="${fmtDateShort(g.date)}" disabled>
+    <div class="field-label">Mata Pelajaran</div>
+    <input class="text-input" id="enMapel" value="${(g.mapel||'').replace(/"/g,'&quot;')}">
+    <div class="field-label">Jenis</div>
+    <div class="tab-toggle">
+      <button class="${g.jenis==='harian'?'active':''}" data-en-jenis="harian">✏️ Harian</button>
+      <button class="${g.jenis==='ujian'?'active':''}" data-en-jenis="ujian">📝 Ujian</button>
+    </div>
+    <div class="field-label">Nilai (0–100)</div>
+    <input type="number" min="0" max="100" class="text-input" id="enNilai" value="${g.nilai}">
+    <div class="field-label">Keterangan (opsional)</div>
+    <input class="text-input" id="enKet" value="${(g.keterangan||'').replace(/"/g,'&quot;')}">
+  `, `<div style="display:flex;gap:8px;">
+      <button class="save-btn" style="flex:1;background:#F8E3DD;color:var(--danger);" id="enDeleteBtn">🗑️ Hapus</button>
+      <button class="save-btn" style="flex:1;" id="enSaveBtn">Simpan</button>
+    </div>`);
+  let jenis = g.jenis;
+  document.querySelectorAll('[data-en-jenis]').forEach(btn=>{
+    btn.onclick = ()=>{
+      jenis = btn.dataset.enJenis;
+      document.querySelectorAll('[data-en-jenis]').forEach(b=> b.classList.toggle('active', b===btn));
+    };
+  });
+  document.getElementById('enSaveBtn').onclick = ()=>{
+    const mapel = document.getElementById('enMapel').value.trim();
+    const nilai = clamp(parseInt(document.getElementById('enNilai').value,10)||0, 0, 100);
+    const ket = document.getElementById('enKet').value.trim();
+    if(!mapel){ showToast('Isi mata pelajaran dulu'); return; }
+    g.mapel = mapel; g.jenis = jenis; g.nilai = nilai; g.keterangan = ket;
+    saveAndRender();
+    showToast('Nilai diperbarui');
+    if(onBack) onBack(); else closeModal();
+  };
+  document.getElementById('enDeleteBtn').onclick = ()=>{
+    if(!confirm('Hapus nilai ini?')) return;
+    state.grades = (state.grades||[]).filter(x=>x.id!==gradeId);
+    saveAndRender();
+    showToast('Nilai dihapus');
+    if(onBack) onBack(); else closeModal();
+  };
+}
+
+function openRekapNilaiModal(initialPeriod){
+  let period = initialPeriod || 'week';
+  let mapelFilter = 'all';
+  function rows(){
+    const {start, end} = periodRange(period);
+    const nameById = {};
+    (state.students||[]).forEach(s=> nameById[s.id] = s.name.split(' ')[0]);
+    return (state.grades||[])
+      .filter(g=> g.date>=start && g.date<=end && nameById[g.studentId])
+      .filter(g=> mapelFilter==='all' || g.mapel===mapelFilter)
+      .sort((a,b)=> b.ts-a.ts);
+  }
+  function draw(){
+    const list = rows();
+    const mapelList = Array.from(new Set((state.grades||[]).map(g=>g.mapel))).sort((a,b)=>a.localeCompare(b));
+    const nameById = {};
+    (state.students||[]).forEach(s=> nameById[s.id] = s.name.split(' ')[0]);
+    const rowsHtml = list.map(g=>{
+      const jenisIcon = g.jenis==='ujian' ? '📝' : '✏️';
+      const jenisLabel = g.jenis==='ujian' ? 'Ujian' : 'Harian';
+      return `<div class="form-row log-row">
+        <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${jenisIcon}</div>
+        <div class="fname">${nameById[g.studentId]||'—'} · ${g.mapel} (${jenisLabel})${g.keterangan?' · '+g.keterangan:''}<div class="mini-note">${fmtDateShort(g.date)}</div></div>
+        <div style="font-weight:800;color:${g.nilai>=60?'var(--gold-deep)':'var(--danger)'};font-size:13px;">${g.nilai}</div>
+        <button type="button" class="icon-btn" data-edit-nilai="${g.id}" title="Edit">✏️</button>
+        <button type="button" class="icon-btn log-del-btn" data-del-nilai="${g.id}" title="Hapus">🗑️</button>
+      </div>`;
+    }).join('') || '<div class="empty-note">Belum ada nilai pada periode ini.</div>';
+
+    openModal('Rekap Nilai', `
+      <div class="tab-toggle">
+        <button class="${period==='week'?'active':''}" data-rn-period="week">Mingguan</button>
+        <button class="${period==='month'?'active':''}" data-rn-period="month">Bulanan</button>
+        <button class="${period==='semester'?'active':''}" data-rn-period="semester">Semester</button>
+        <button class="${period==='all'?'active':''}" data-rn-period="all">Semua</button>
+      </div>
+      ${mapelList.length ? `<div class="tab-toggle" style="margin-top:6px;flex-wrap:wrap;">
+        <button class="${mapelFilter==='all'?'active':''}" data-rn-mapel="all">Semua Mapel</button>
+        ${mapelList.map(m=>`<button class="${mapelFilter===m?'active':''}" data-rn-mapel="${m}">${m}</button>`).join('')}
+      </div>` : ''}
+      <div class="mini-note" style="margin:8px 2px;">👆 Ketuk ✏️ untuk ubah nilai/keterangan, 🗑️ untuk hapus.</div>
+      ${rowsHtml}
+    `, `<button class="save-btn" id="rnCloseBtn">Tutup</button>`);
+    document.querySelectorAll('[data-rn-period]').forEach(btn=>{
+      btn.onclick = ()=>{ period = btn.dataset.rnPeriod; draw(); };
+    });
+    document.querySelectorAll('[data-rn-mapel]').forEach(btn=>{
+      btn.onclick = ()=>{ mapelFilter = btn.dataset.rnMapel; draw(); };
+    });
+    document.querySelectorAll('[data-edit-nilai]').forEach(btn=>{
+      btn.onclick = ()=> openEditNilaiModal(btn.dataset.editNilai, ()=> openRekapNilaiModal(period));
+    });
+    document.querySelectorAll('[data-del-nilai]').forEach(btn=>{
+      btn.onclick = ()=>{
+        if(confirm('Hapus nilai ini?')){
+          state.grades = (state.grades||[]).filter(x=>x.id!==btn.dataset.delNilai);
+          saveAndRender();
+          draw();
+        }
+      };
+    });
+    document.getElementById('rnCloseBtn').onclick = closeModal;
   }
   draw();
 }
