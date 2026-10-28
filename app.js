@@ -1798,6 +1798,23 @@ function pageOfAyat(surah, ayat){
   }
   return ans;
 }
+// Satu ayat setelah (surah,ayat) — dipakai supaya batas awal sesi berikutnya otomatis
+// lanjut dari SETELAH ayat terakhir yang dibaca, bukan mengulang ayat yang sama.
+function nextAyat(surah, ayat){
+  const count = SURAH_AYAT_COUNT[surah-1] || ayat;
+  if(ayat < count) return {surah, ayat: ayat+1};
+  if(surah < 114) return {surah: surah+1, ayat: 1};
+  return {surah, ayat}; // sudah di ayat terakhir An-Nas, tidak ada lagi setelahnya
+}
+// Ayat TERAKHIR pada suatu halaman mushaf (1-604) — dipakai supaya guru cukup mengisi nomor
+// halaman, lalu surat & ayat batas akhir terisi otomatis sesuai akhir halaman itu.
+function pageEndAyat(pageNum){
+  const p = Math.max(1, Math.min(604, parseInt(pageNum,10)||1));
+  if(p>=604) return {surah:114, ayat:SURAH_AYAT_COUNT[113]};
+  const [nSurah, nAyat] = PAGE_START[p]; // awal halaman (p+1)
+  if(nAyat>1) return {surah:nSurah, ayat:nAyat-1};
+  return {surah:nSurah-1, ayat:SURAH_AYAT_COUNT[nSurah-2]};
+}
 
 // Awal tiap juz: [nomor surat, nomor ayat] — juz ke-N dimulai di JUZ_START[N-1] (cocok dengan data mushaf Madinah).
 const JUZ_START = [[1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,82],[6,111],[7,88],[8,41],[9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],[29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1]];
@@ -2004,6 +2021,9 @@ function openQuranModal(){
   // Catatan bacaan (opsional): kekurangan siswa saat setor — misalnya makhraj huruf
   // tertentu atau ketepatan tajwid — supaya bisa dilihat lagi nanti di Rekap.
   const catatan = {};
+  // Nomor halaman "Sampai (batas akhir)" — kalau diisi, surat & ayat akhir otomatis mengikuti
+  // ayat terakhir pada halaman itu (tetap bisa diubah manual sesudahnya).
+  const pageTo = {};
   // Dipakai supaya posisi scroll tidak melompat ke atas setiap kali layar digambar ulang
   // (misalnya setelah memilih surat dari pencarian, atau mencentang salah satu siswa).
   let pendingScroll = null;
@@ -2024,26 +2044,30 @@ function openQuranModal(){
   function isEditingStart(s){
     return editingStart[s.id] !== undefined ? editingStart[s.id] : !s.darusPos;
   }
+  // Batas awal = satu ayat SETELAH ayat terakhir yang dibaca (s.darusPos), bukan mengulang
+  // ayat yang sama — supaya tidak perlu diubah manual tiap sesi baru.
   function currentStart(s){
+    const auto = s.darusPos ? nextAyat(s.darusPos.surah, s.darusPos.ayat) : null;
     if(isEditingStart(s)){
       return {
-        surah: startSurah[s.id] !== undefined ? startSurah[s.id] : (s.darusPos ? s.darusPos.surah : ''),
-        ayat: startAyat[s.id] !== undefined ? startAyat[s.id] : (s.darusPos ? s.darusPos.ayat : 1),
+        surah: startSurah[s.id] !== undefined ? startSurah[s.id] : (auto ? auto.surah : ''),
+        ayat: startAyat[s.id] !== undefined ? startAyat[s.id] : (auto ? auto.ayat : 1),
       };
     }
-    return { surah: s.darusPos.surah, ayat: s.darusPos.ayat };
+    return auto;
   }
   function isEditingMuroStart(s){
     return editingMuroStart[s.id] !== undefined ? editingMuroStart[s.id] : !s.muroPos;
   }
   function currentMuroStart(s){
+    const auto = s.muroPos ? nextAyat(s.muroPos.surah, s.muroPos.ayat) : null;
     if(isEditingMuroStart(s)){
       return {
-        surah: startMuroSurah[s.id] !== undefined ? startMuroSurah[s.id] : (s.muroPos ? s.muroPos.surah : ''),
-        ayat: startMuroAyat[s.id] !== undefined ? startMuroAyat[s.id] : (s.muroPos ? s.muroPos.ayat : 1),
+        surah: startMuroSurah[s.id] !== undefined ? startMuroSurah[s.id] : (auto ? auto.surah : ''),
+        ayat: startMuroAyat[s.id] !== undefined ? startMuroAyat[s.id] : (auto ? auto.ayat : 1),
       };
     }
-    return { surah: s.muroPos.surah, ayat: s.muroPos.ayat };
+    return auto;
   }
 
   // Tombol pemilih surat (menggantikan <select> panjang) — menampilkan surat terpilih,
@@ -2062,13 +2086,14 @@ function openQuranModal(){
         <input type="number" min="1" class="qr-ayat qr-ayat-sm" placeholder="Ayat" data-qstartayat="${s.id}" value="${start.ayat||''}">
         ${s.darusPos ? `<button type="button" class="qr-mini-btn" data-qcancelstart="${s.id}">Batal</button>` : ''}
       ` : `
-        <span class="qr-start-label">▶ Mulai: <b>${surahLabel(s.darusPos.surah)} : ${s.darusPos.ayat}</b></span>
+        <span class="qr-start-label">▶ Mulai: <b>${surahLabel(start.surah)} : ${start.ayat}</b></span>
         <button type="button" class="qr-mini-btn" data-qeditstart="${s.id}">Ubah</button>
       `;
     return `
         <div class="qr-darus-start">${startBlock}</div>
-        <div class="qr-end-label">Sampai (batas akhir)</div>
+        <div class="qr-end-label">Sampai (batas akhir) <span class="qr-end-hint">— atau isi JUMLAH halaman yang dibaca, ayat akhir terisi otomatis</span></div>
         <div class="qr-fields">
+          <input type="number" min="1" max="604" class="qr-page-input" placeholder="∑ Hal." data-qpage="${s.id}" value="${pageTo[s.id]||''}">
           ${surahPickBtn('dend', s.id, endSurah[s.id] || start.surah)}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
@@ -2084,13 +2109,14 @@ function openQuranModal(){
         <input type="number" min="1" class="qr-ayat qr-ayat-sm" placeholder="Ayat" data-qmstartayat="${s.id}" value="${start.ayat||''}">
         ${s.muroPos ? `<button type="button" class="qr-mini-btn" data-qcancelmustart="${s.id}">Batal</button>` : ''}
       ` : `
-        <span class="qr-start-label">▶ Mulai: <b>${surahLabel(s.muroPos.surah)} : ${s.muroPos.ayat}</b></span>
+        <span class="qr-start-label">▶ Mulai: <b>${surahLabel(start.surah)} : ${start.ayat}</b></span>
         <button type="button" class="qr-mini-btn" data-qeditmustart="${s.id}">Ubah</button>
       `;
     return `
         <div class="qr-darus-start">${startBlock}</div>
-        <div class="qr-end-label">Sampai (batas akhir)</div>
+        <div class="qr-end-label">Sampai (batas akhir) <span class="qr-end-hint">— atau isi JUMLAH halaman yang dibaca, ayat akhir terisi otomatis</span></div>
         <div class="qr-fields">
+          <input type="number" min="1" max="604" class="qr-page-input" placeholder="∑ Hal." data-qpage="${s.id}" value="${pageTo[s.id]||''}">
           ${surahPickBtn('mend', s.id, murojaahEndSurah[s.id] || start.surah)}
           <input type="number" min="1" class="qr-ayat" placeholder="Ayat" data-qto="${s.id}" value="${ayatTo[s.id]||''}">
           <button type="button" class="qr-open" data-qopen="${s.id}">📖</button>
@@ -2202,6 +2228,32 @@ function openQuranModal(){
     });
     document.querySelectorAll('[data-qto]').forEach(inp=>{
       inp.oninput = ()=>{ ayatTo[inp.dataset.qto] = inp.value; };
+    });
+    document.querySelectorAll('[data-qpage]').forEach(inp=>{
+      // onchange (bukan oninput) supaya mengetik angka halaman tidak diganggu redraw di
+      // tiap ketukan tombol — baru dihitung & diisikan otomatis begitu pindah fokus.
+      // Angka yang diisi = JUMLAH halaman yang dibaca (dihitung dari halaman tempat ayat
+      // mulai berada), BUKAN nomor halaman mutlak — jadi guru tinggal tahu "baca berapa
+      // halaman hari ini", tidak perlu tahu/menghitung sendiri ini halaman ke berapa.
+      inp.onchange = ()=>{
+        const id = inp.dataset.qpage;
+        pageTo[id] = inp.value;
+        const n = parseInt(inp.value,10);
+        const s = state.students.find(x=>x.id===id);
+        if(n>=1 && s){
+          const start = (mode==='darus') ? currentStart(s) : currentMuroStart(s);
+          if(start && start.surah){
+            const startPage = pageOfAyat(start.surah, start.ayat);
+            const targetPage = Math.min(604, startPage + n - 1);
+            const end = pageEndAyat(targetPage);
+            if(mode==='darus') endSurah[id] = end.surah; else murojaahEndSurah[id] = end.surah;
+            ayatTo[id] = String(end.ayat);
+            const body = document.querySelector('.modal-body');
+            pendingScroll = body ? body.scrollTop : 0;
+            draw();
+          }
+        }
+      };
     });
     document.querySelectorAll('[data-qnote]').forEach(inp=>{
       inp.oninput = ()=>{ catatan[inp.dataset.qnote] = inp.value; };
