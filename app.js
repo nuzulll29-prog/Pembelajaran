@@ -1761,22 +1761,48 @@ function openRekapNilaiModal(initialPeriod){
       .filter(g=> mapelFilter==='all' || g.mapel===mapelFilter)
       .sort((a,b)=> b.ts-a.ts);
   }
+  // Format tabel menyamping: siswa jadi baris, dan kolomnya tergantung tampilan.
+  // "Semua Mapel" -> kolom = tiap mata pelajaran, isi sel = rata-rata nilai mapel itu.
+  // Satu mapel dipilih -> kolom = tiap tanggal, isi sel = nilai pada tanggal itu persis.
+  function tableHtml(list, mapelList){
+    const students = state.students||[];
+    if(mapelFilter==='all'){
+      const mapels = Array.from(new Set(list.map(g=>g.mapel))).sort((a,b)=>a.localeCompare(b));
+      if(!mapels.length) return '<div class="empty-note">Belum ada nilai pada periode ini.</div>';
+      const head = mapels.map(m=>`<th>${m}</th>`).join('');
+      const body = students.map(s=>{
+        const cells = mapels.map(m=>{
+          const entries = list.filter(g=>g.studentId===s.id && g.mapel===m);
+          if(!entries.length) return `<td class="nt-empty">—</td>`;
+          const avg = Math.round(entries.reduce((a,g)=>a+g.nilai,0)/entries.length);
+          const cls = avg>=60 ? 'nt-good' : 'nt-bad';
+          const badge = entries.length>1 ? `<span class="nt-count">×${entries.length}</span>` : '';
+          const action = entries.length===1 ? `data-nt-edit="${entries[0].id}"` : `data-nt-drill="${m.replace(/"/g,'&quot;')}"`;
+          return `<td class="${cls}" ${action}>${avg}${badge}</td>`;
+        }).join('');
+        return `<tr><th class="nt-stu">${s.name.split(' ')[0]}</th>${cells}</tr>`;
+      }).join('');
+      return `<div class="nilai-table-wrap"><table class="nilai-table"><thead><tr><th class="nt-stu"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    }
+    const dates = Array.from(new Set(list.map(g=>g.date))).sort();
+    if(!dates.length) return '<div class="empty-note">Belum ada nilai pada periode ini.</div>';
+    const head = dates.map(d=>`<th>${fmtDateShort(d)}</th>`).join('');
+    const body = students.map(s=>{
+      const cells = dates.map(d=>{
+        const entries = list.filter(g=>g.studentId===s.id && g.date===d).sort((a,b)=>b.ts-a.ts);
+        if(!entries.length) return `<td class="nt-empty">—</td>`;
+        const g = entries[0];
+        const cls = g.nilai>=60 ? 'nt-good' : 'nt-bad';
+        return `<td class="${cls}" data-nt-edit="${g.id}">${g.nilai}</td>`;
+      }).join('');
+      return `<tr><th class="nt-stu">${s.name.split(' ')[0]}</th>${cells}</tr>`;
+    }).join('');
+    return `<div class="nilai-table-wrap"><table class="nilai-table"><thead><tr><th class="nt-stu"></th>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
   function draw(){
     const list = rows();
     const mapelList = Array.from(new Set((state.grades||[]).map(g=>g.mapel))).sort((a,b)=>a.localeCompare(b));
-    const nameById = {};
-    (state.students||[]).forEach(s=> nameById[s.id] = s.name.split(' ')[0]);
-    const rowsHtml = list.map(g=>{
-      const jenisIcon = g.jenis==='ujian' ? '📝' : '✏️';
-      const jenisLabel = g.jenis==='ujian' ? 'Ujian' : 'Harian';
-      return `<div class="form-row log-row">
-        <div class="av-sm" style="background:var(--sage-soft);color:var(--accent)">${jenisIcon}</div>
-        <div class="fname">${nameById[g.studentId]||'—'} · ${g.mapel} (${jenisLabel})${g.keterangan?' · '+g.keterangan:''}<div class="mini-note">${fmtDateShort(g.date)}</div></div>
-        <div style="font-weight:800;color:${g.nilai>=60?'var(--gold-deep)':'var(--danger)'};font-size:13px;">${g.nilai}</div>
-        <button type="button" class="icon-btn" data-edit-nilai="${g.id}" title="Edit">✏️</button>
-        <button type="button" class="icon-btn log-del-btn" data-del-nilai="${g.id}" title="Hapus">🗑️</button>
-      </div>`;
-    }).join('') || '<div class="empty-note">Belum ada nilai pada periode ini.</div>';
 
     openModal('Rekap Nilai', `
       <div class="tab-toggle">
@@ -1787,10 +1813,10 @@ function openRekapNilaiModal(initialPeriod){
       </div>
       ${mapelList.length ? `<div class="tab-toggle" style="margin-top:6px;flex-wrap:wrap;">
         <button class="${mapelFilter==='all'?'active':''}" data-rn-mapel="all">Semua Mapel</button>
-        ${mapelList.map(m=>`<button class="${mapelFilter===m?'active':''}" data-rn-mapel="${m}">${m}</button>`).join('')}
+        ${mapelList.map(m=>`<button class="${mapelFilter===m?'active':''}" data-rn-mapel="${m.replace(/"/g,'&quot;')}">${m}</button>`).join('')}
       </div>` : ''}
-      <div class="mini-note" style="margin:8px 2px;">👆 Ketuk ✏️ untuk ubah nilai/keterangan, 🗑️ untuk hapus.</div>
-      ${rowsHtml}
+      <div class="mini-note" style="margin:8px 2px;">👆 Geser ke samping utk lihat semua kolom. Ketuk sel nilai untuk mengedit${mapelFilter==='all' ? ' (×N = rata-rata, ketuk untuk rincian per tanggal)' : ''}.</div>
+      ${tableHtml(list, mapelList)}
     `, `<button class="save-btn" id="rnCloseBtn">Tutup</button>`);
     document.querySelectorAll('[data-rn-period]').forEach(btn=>{
       btn.onclick = ()=>{ period = btn.dataset.rnPeriod; draw(); };
@@ -1798,17 +1824,11 @@ function openRekapNilaiModal(initialPeriod){
     document.querySelectorAll('[data-rn-mapel]').forEach(btn=>{
       btn.onclick = ()=>{ mapelFilter = btn.dataset.rnMapel; draw(); };
     });
-    document.querySelectorAll('[data-edit-nilai]').forEach(btn=>{
-      btn.onclick = ()=> openEditNilaiModal(btn.dataset.editNilai, ()=> openRekapNilaiModal(period));
+    document.querySelectorAll('[data-nt-edit]').forEach(td=>{
+      td.onclick = ()=> openEditNilaiModal(td.dataset.ntEdit, draw);
     });
-    document.querySelectorAll('[data-del-nilai]').forEach(btn=>{
-      btn.onclick = ()=>{
-        if(confirm('Hapus nilai ini?')){
-          state.grades = (state.grades||[]).filter(x=>x.id!==btn.dataset.delNilai);
-          saveAndRender();
-          draw();
-        }
-      };
+    document.querySelectorAll('[data-nt-drill]').forEach(td=>{
+      td.onclick = ()=>{ mapelFilter = td.dataset.ntDrill; draw(); };
     });
     document.getElementById('rnCloseBtn').onclick = closeModal;
   }
