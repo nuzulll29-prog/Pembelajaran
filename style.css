@@ -1,4 +1,4 @@
-:root{
+  :root{
     --bg:#FAF6EC;
     --bg-elevated:#FFFFFF;
     --ink:#233428;
@@ -410,6 +410,12 @@
   .qr-select-sm{flex:1.4;min-width:0;}
   .qr-ayat-sm{width:56px;}
   .qr-end-label{font-size:10.5px;color:var(--ink-soft);font-weight:700;margin:0 0 4px;}
+  .qr-end-hint{font-weight:500;color:var(--ink-soft);opacity:.8;}
+  /* Isi halaman -> ayat akhir otomatis terisi */
+  .qr-page-input{
+    width:52px;flex-shrink:0;border-radius:10px;border:1.5px solid var(--card-border);
+    background:var(--bg-elevated);font-size:13px;text-align:center;padding:9px 2px;
+  }
 
   /* Input poin bertanda (+/-): toggle tombol tanda + keypad angka biasa — keypad Android
      bawaan untuk input angka sering tidak punya tombol minus sama sekali. */
@@ -440,6 +446,25 @@
   /* Baris darus/murojaah yang sudah tersimpan (setelah dicentang): dikunci sampai dibatalkan */
   .qr-locked{opacity:.5;pointer-events:none;}
   .qr-saved-tag{font-size:10px;font-weight:800;color:var(--sage);margin-inline-start:4px;}
+
+  /* REKAP NILAI — format tabel menyamping (siswa = baris, mapel/tanggal = kolom) */
+  .nilai-table-wrap{overflow-x:auto;margin:4px -2px 0;-webkit-overflow-scrolling:touch;}
+  .nilai-table{border-collapse:collapse;width:max-content;min-width:100%;}
+  .nilai-table th,.nilai-table td{
+    padding:9px 12px;text-align:center;font-size:12.5px;white-space:nowrap;
+    border-bottom:1px solid var(--card-border);
+  }
+  .nilai-table thead th{font-size:11px;font-weight:800;color:var(--ink-soft);background:var(--sage-soft);}
+  .nilai-table th.nt-stu{
+    position:sticky;left:0;z-index:1;text-align:left;font-weight:800;color:var(--ink);
+    background:var(--bg-elevated);box-shadow:1px 0 0 var(--card-border);
+  }
+  .nilai-table thead th.nt-stu{background:var(--sage-soft);}
+  .nilai-table td.nt-good{color:var(--gold-deep);font-weight:800;cursor:pointer;}
+  .nilai-table td.nt-bad{color:var(--danger);font-weight:800;cursor:pointer;}
+  .nilai-table td.nt-empty{color:var(--ink-soft);opacity:.5;}
+  .nilai-table td:active{background:var(--sage-soft);}
+  .nt-count{display:block;font-size:9px;font-weight:700;color:var(--ink-soft);}
 
   /* REKAP POIN */
   .rekap-weak-box{
